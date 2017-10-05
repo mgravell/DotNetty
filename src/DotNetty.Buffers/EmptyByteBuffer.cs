@@ -216,6 +216,12 @@ namespace DotNetty.Buffers
 
         public IByteBuffer GetBytes(int index, Stream destination, int length) => this.CheckIndex(index, length);
 
+        public ICharSequence GetCharSequence(int index, int length, Encoding encoding)
+        {
+            this.CheckIndex(index, length);
+            return null;
+        }
+
         public IByteBuffer SetBoolean(int index, bool value)
         {
             throw new IndexOutOfRangeException();
@@ -331,6 +337,11 @@ namespace DotNetty.Buffers
         }
 
         public IByteBuffer SetZero(int index, int length) => this.CheckIndex(index, length);
+
+        public int SetCharSequence(int index, ICharSequence sequence, Encoding encoding)
+        {
+            throw new IndexOutOfRangeException();
+        }
 
         public bool ReadBoolean()
         {
@@ -451,6 +462,12 @@ namespace DotNetty.Buffers
 
         public IByteBuffer ReadBytes(Stream destination, int length) => this.CheckLength(length);
 
+        public ICharSequence ReadCharSequence(int length, Encoding encoding)
+        {
+            this.CheckLength(length);
+            return null;
+        }
+
         public IByteBuffer SkipBytes(int length) => this.CheckLength(length);
 
         public IByteBuffer WriteBoolean(bool value)
@@ -569,6 +586,11 @@ namespace DotNetty.Buffers
         public IByteBuffer WriteBytes(byte[] src, int srcIndex, int length) => this.CheckLength(length);
 
         public IByteBuffer WriteZero(int length) => this.CheckLength(length);
+
+        public int WriteCharSequence(ICharSequence sequence, Encoding encoding)
+        {
+            throw new IndexOutOfRangeException();
+        }
 
         public int IndexOf(int fromIndex, int toIndex, byte value)
         {
@@ -713,7 +735,7 @@ namespace DotNetty.Buffers
             return TaskEx.Completed;
         }
 
-        // ReSharper disable UnusedParameter.Local
+        // ReSharper disable ParameterOnlyUsedForPreconditionCheck.Local
         IByteBuffer CheckIndex(int index)
         {
             if (index != 0)
@@ -736,7 +758,7 @@ namespace DotNetty.Buffers
 
             return this;
         }
-        // ReSharper restore UnusedParameter.Local
+        // ReSharper restore ParameterOnlyUsedForPreconditionCheck.Local
 
         IByteBuffer CheckLength(int length)
         {

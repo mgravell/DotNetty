@@ -12,6 +12,11 @@ namespace DotNetty.Buffers
     using DotNetty.Common;
     using DotNetty.Common.Utilities;
 
+    /// Wraps another <see cref="IByteBuffer"/>.
+    /// 
+    /// It's important that the {@link #readerIndex()} and {@link #writerIndex()} will not do any adjustments on the
+    /// indices on the fly because of internal optimizations made by {@link ByteBufUtil#writeAscii(ByteBuf, CharSequence)}
+    /// and {@link ByteBufUtil#writeUtf8(ByteBuf, CharSequence)}.
     class WrappedByteBuffer : IByteBuffer
     {
         protected readonly IByteBuffer Buf;
@@ -197,6 +202,8 @@ namespace DotNetty.Buffers
             return this;
         }
 
+        public ICharSequence GetCharSequence(int index, int length, Encoding encoding) => this.Buf.GetCharSequence(index, length, encoding);
+
         public virtual IByteBuffer SetBoolean(int index, bool value)
         {
             this.Buf.SetBoolean(index, value);
@@ -333,6 +340,8 @@ namespace DotNetty.Buffers
             return this;
         }
 
+        public int SetCharSequence(int index, ICharSequence sequence, Encoding encoding) => this.Buf.SetCharSequence(index, sequence, encoding);
+
         public virtual bool ReadBoolean() => this.Buf.ReadBoolean();
 
         public virtual byte ReadByte() => this.Buf.ReadByte();
@@ -418,6 +427,8 @@ namespace DotNetty.Buffers
             this.Buf.ReadBytes(output, length);
             return this;
         }
+
+        public ICharSequence ReadCharSequence(int length, Encoding encoding) => this.Buf.ReadCharSequence(length, encoding);
 
         public virtual IByteBuffer SkipBytes(int length)
         {
@@ -556,6 +567,8 @@ namespace DotNetty.Buffers
             this.Buf.WriteZero(length);
             return this;
         }
+
+        public int WriteCharSequence(ICharSequence sequence, Encoding encoding) => this.Buf.WriteCharSequence(sequence, encoding);
 
         public virtual int IndexOf(int fromIndex, int toIndex, byte value) => this.Buf.IndexOf(fromIndex, toIndex, value);
 

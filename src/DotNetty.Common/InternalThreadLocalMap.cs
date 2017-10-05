@@ -4,6 +4,7 @@
 namespace DotNetty.Common
 {
     using System;
+    using System.Collections.Generic;
     using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
@@ -16,8 +17,9 @@ namespace DotNetty.Common
     /// </summary>
     public sealed class InternalThreadLocalMap
     {
-        public static readonly object Unset = new object();
+        const int DefaultArrayListInitialCapacity = 8;
 
+        public static readonly object Unset = new object();
         [ThreadStatic]
         static InternalThreadLocalMap slowThreadLocalMap;
 
@@ -32,6 +34,9 @@ namespace DotNetty.Common
 
         // String-related thread-locals
         StringBuilder stringBuilder;
+
+        // ArrayList-related thread-locals
+        List<ICharSequence> list;
 
         internal static int NextVariableIndex()
         {
@@ -65,7 +70,9 @@ namespace DotNetty.Common
 
         // Cache line padding (must be public)
         // With CompressedOops enabled, an instance of this class should occupy at least 128 bytes.
+        // ReSharper disable InconsistentNaming
         public long rp1, rp2, rp3, rp4, rp5, rp6, rp7, rp8, rp9;
+        // ReSharper restore InconsistentNaming
 
         InternalThreadLocalMap()
         {
@@ -127,6 +134,21 @@ namespace DotNetty.Common
                 }
                 return builder;
             }
+        }
+
+        public List<ICharSequence> CharSequenceList(int minCapacity = DefaultArrayListInitialCapacity)
+        {
+            List<ICharSequence> localList = this.list;
+            if (localList == null)
+            {
+                this.list = new List<ICharSequence>(minCapacity);
+                return this.list;
+            }
+
+            localList.Clear();
+            // ensureCapacity
+            localList.Capacity = minCapacity;
+            return localList;
         }
 
         public int FutureListenerStackDepth

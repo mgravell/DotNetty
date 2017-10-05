@@ -57,7 +57,7 @@ namespace DotNetty.Buffers
             this.SetIndex0(0, 0);
             this.DiscardMarks();
         }
-
+        
         public override int Capacity => this.Length;
 
         public sealed override IByteBuffer AdjustCapacity(int newCapacity)

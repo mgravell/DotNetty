@@ -8,6 +8,14 @@
     <SignAssembly>true</SignAssembly>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Handler\**" />
+    <Compile Remove="Http\**" />
+    <EmbeddedResource Remove="Handler\**" />
+    <EmbeddedResource Remove="Http\**" />
+    <None Remove="Handler\**" />
+    <None Remove="Http\**" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.10.9" />
   </ItemGroup>
   <ItemGroup>
