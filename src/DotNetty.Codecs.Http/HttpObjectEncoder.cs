@@ -10,15 +10,27 @@ namespace DotNetty.Codecs.Http
     using DotNetty.Common.Utilities;
     using DotNetty.Transport.Channels;
 
-    public abstract class HttpObjectEncoder<T> : MessageToMessageEncoder<object> 
-        where T : IHttpMessage
+    public abstract class HttpObjectEncoder<T> : MessageToMessageEncoder<object> where T : IHttpMessage
     {
+        const float HeadersWeightNew = 1 / 5f;
+        const float HeadersWeightHistorical = 1 - HeadersWeightNew;
+        const float TrailersWeightNew = HeadersWeightNew;
+        const float TrailersWeightHistorical = HeadersWeightHistorical;
+
         const int StInit = 0;
         const int StContentNonChunk = 1;
         const int StContentChunk = 2;
         const int StContentAlwaysEmpty = 3;
 
         int state = StInit;
+
+        // Used to calculate an exponential moving average of the encoded size of the initial line and the headers for
+        // a guess for future buffer allocations.
+        float headersEncodedSizeAccumulator = 256;
+
+        // Used to calculate an exponential moving average of the encoded size of the trailers for
+        // a guess for future buffer allocations.
+        float trailersEncodedSizeAccumulator = 256;
 
         protected override void Encode(IChannelHandlerContext context, object message, List<object> output)
         {
@@ -31,15 +43,19 @@ namespace DotNetty.Codecs.Http
                 }
 
                 var m = (T)message;
-                buf = context.Allocator.Buffer();
+                buf = context.Allocator.Buffer((int)this.headersEncodedSizeAccumulator);
                 // Encode the message.
                 this.EncodeInitialLine(buf, m);
+                this.state = this.IsContentAlwaysEmpty(m) ? StContentAlwaysEmpty
+                    : HttpUtil.IsTransferEncodingChunked(m) ? StContentChunk : StContentNonChunk;
+
+                this.SanitizeHeadersBeforeEncode(m, this.state == StContentAlwaysEmpty);
+
                 this.EncodeHeaders(m.Headers, buf);
                 buf.WriteShort(HttpConstants.CrlfShort);
 
-                this.state = this.IsContentAlwaysEmpty(m) 
-                    ? StContentAlwaysEmpty 
-                    : HttpUtil.IsTransferEncodingChunked(m) ? StContentChunk : StContentNonChunk;
+                this.headersEncodedSizeAccumulator = HeadersWeightNew * PadSizeForAccumulation(buf.ReadableBytes) 
+                    + HeadersWeightHistorical * this.headersEncodedSizeAccumulator;
             }
 
             // Bypass the encoder in case of an empty buffer, so that the following idiom works:
@@ -47,9 +63,7 @@ namespace DotNetty.Codecs.Http
             //     ch.write(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
             //
             // See https://github.com/netty/netty/issues/2983 for more information.
-
-            var buffer = message as IByteBuffer;
-            if (buffer != null && !buffer.IsReadable())
+            if (message is IByteBuffer byteBuffer && !byteBuffer.IsReadable())
             {
                 output.Add(Unpooled.Empty);
                 return;
@@ -57,13 +71,10 @@ namespace DotNetty.Codecs.Http
 
             if (message is IHttpContent || message is IByteBuffer || message is IFileRegion)
             {
-                if (this.state == StInit)
-                {
-                    throw new EncoderException($"unexpected message type: {StringUtil.SimpleClassName(message)}");
-                }
-
                 switch (this.state)
                 {
+                    case StInit:
+                        throw new EncoderException($"unexpected message type: {StringUtil.SimpleClassName(message)}");
                     case StContentNonChunk:
                         long contentLength = ContentLength(message);
                         if (contentLength > 0)
@@ -80,7 +91,6 @@ namespace DotNetty.Codecs.Http
                                 {
                                     output.Add(buf);
                                 }
-
                                 output.Add(EncodeAndRetain(message));
                             }
 
@@ -91,13 +101,12 @@ namespace DotNetty.Codecs.Http
                         }
                         else
                         {
+                            // fall-through! to StContentAlwaysEmpty
                             output.Add(buf ?? Unpooled.Empty);
                         }
+
                         break;
                     case StContentAlwaysEmpty:
-                        // We allocated a buffer so add it now.
-                        // Need to produce some output otherwise an
-                        // IllegalStateException will be thrown
                         output.Add(buf ?? Unpooled.Empty);
                         break;
                     case StContentChunk:
@@ -106,7 +115,6 @@ namespace DotNetty.Codecs.Http
                             // We allocated a buffer so add it now.
                             output.Add(buf);
                         }
-
                         this.EncodeChunkedContent(context, message, ContentLength(message), output);
                         break;
                     default:
@@ -145,8 +153,7 @@ namespace DotNetty.Codecs.Http
                 output.Add(HttpConstants.CrlfBuf.Duplicate());
             }
 
-            var content = message as ILastHttpContent;
-            if (content != null)
+            if (message is ILastHttpContent content)
             {
                 HttpHeaders headers = content.TrailingHeaders;
                 if (headers.IsEmpty)
@@ -155,10 +162,13 @@ namespace DotNetty.Codecs.Http
                 }
                 else
                 {
-                    IByteBuffer buf = context.Allocator.Buffer();
+                    IByteBuffer buf = context.Allocator.Buffer((int)this.trailersEncodedSizeAccumulator);
                     buf.WriteMedium(HttpConstants.ZeroCrlfMedium);
                     this.EncodeHeaders(headers, buf);
                     buf.WriteShort(HttpConstants.CrlfShort);
+                    this.trailersEncodedSizeAccumulator = TrailersWeightNew * PadSizeForAccumulation(buf.ReadableBytes) 
+                        + TrailersWeightHistorical * this.trailersEncodedSizeAccumulator;
+
                     output.Add(buf);
                 }
             }
@@ -170,24 +180,27 @@ namespace DotNetty.Codecs.Http
             }
         }
 
+        // Allows to sanitize headers of the message before encoding these.
+        protected void SanitizeHeadersBeforeEncode(T msg, bool isAlwaysEmpty)
+        {
+            // noop
+        }
+
         protected virtual bool IsContentAlwaysEmpty(T msg) => false;
 
         public override bool AcceptOutboundMessage(object msg) => msg is IHttpObject || msg is IByteBuffer || msg is IFileRegion;
 
         static object EncodeAndRetain(object message)
         {
-            var buffer = message as IByteBuffer;
-            if (buffer != null)
+            if (message is IByteBuffer buffer)
             {
                 return buffer.Retain();
             }
-            var content = message as IHttpContent;
-            if (content != null)
+            if (message is IHttpContent content)
             {
                 return content.Content.Retain();
             }
-            var region = message as IFileRegion;
-            if (region != null) 
+            if (message is IFileRegion region) 
             {
                 return region.Retain();
             }
@@ -197,24 +210,27 @@ namespace DotNetty.Codecs.Http
 
         static long ContentLength(object message)
         {
-            var content = message as IHttpContent;
-            if (content != null)
+            if (message is IHttpContent content)
             {
                 return content.Content.ReadableBytes;
             }
-            var buffer = message as IByteBuffer;
-            if (buffer != null)
+            if (message is IByteBuffer buffer)
             {
                 return buffer.ReadableBytes;
             }
-            var region = message as IFileRegion;
-            if (region != null) 
+            if (message is IFileRegion region) 
             {
                 return region.Count;
             }
 
             throw new EncoderException($"unexpected message type: {StringUtil.SimpleClassName(message)}");
         }
+
+        // Add some additional overhead to the buffer. The rational is that it is better to slightly over allocate and waste
+        // some memory, rather than under allocate and require a resize/copy.
+        // @param readableBytes The readable bytes in the buffer.
+        // @return The {@code readableBytes} with some additional padding.
+        static int PadSizeForAccumulation(int readableBytes) => (readableBytes << 2) / 3;
 
         protected internal abstract void EncodeInitialLine(IByteBuffer buf, T message);
     }

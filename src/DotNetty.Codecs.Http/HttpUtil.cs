@@ -261,8 +261,7 @@ namespace DotNetty.Codecs.Http
 
         public static bool IsContentLengthSet(IHttpMessage message) => message.Headers.Contains(HttpHeaderNames.ContentLength);
 
-        public static bool IsTransferEncodingChunked(IHttpMessage message) => 
-            message.Headers.Contains(HttpHeaderNames.TransferEncoding, HttpHeaderValues.Chunked, true);
+        public static bool IsTransferEncodingChunked(IHttpMessage message) => message.Headers.Contains(HttpHeaderNames.TransferEncoding, HttpHeaderValues.Chunked, true);
 
         public static void SetTransferEncodingChunked(IHttpMessage m, bool chunked)
         {

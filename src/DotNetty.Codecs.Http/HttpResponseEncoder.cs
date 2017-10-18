@@ -7,8 +7,7 @@ namespace DotNetty.Codecs.Http
 
     public class HttpResponseEncoder : HttpObjectEncoder<IHttpResponse>
     {
-        public override bool AcceptOutboundMessage(object msg) => 
-            base.AcceptOutboundMessage(msg) && !(msg is IHttpRequest);
+        public override bool AcceptOutboundMessage(object msg) => base.AcceptOutboundMessage(msg) && !(msg is IHttpRequest);
 
         protected internal override void EncodeInitialLine(IByteBuffer buf, IHttpResponse response)
         {

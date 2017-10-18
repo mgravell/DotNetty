@@ -809,12 +809,11 @@ namespace DotNetty.Codecs.Http
 
             public override bool Process(byte value)
             {
-                char nextByte = (char)value;
-                if (nextByte == HttpConstants.CarriageReturn)
+                if (value == HttpConstants.CarriageReturn)
                 {
                     return true;
                 }
-                if (nextByte == HttpConstants.LineFeed)
+                if (value == HttpConstants.LineFeed)
                 {
                     return false;
                 }
@@ -825,14 +824,14 @@ namespace DotNetty.Codecs.Http
                     //    or close the connection.
                     //       No need to notify the upstream handlers - just log.
                     //       If decoding a response, just throw an exception.
-                    throw this.NewException(this.maxLength);
+                    ThrowHelper.ThrowTooLongFrameException(this.NewExceptionMessage(this.maxLength));
                 }
 
-                this.seq.Append(nextByte);
+                this.seq.Append((char)value);
                 return true;
             }
 
-            protected virtual TooLongFrameException NewException(int length) => new TooLongFrameException($"HTTP header is larger than {length} bytes.");
+            protected virtual string NewExceptionMessage(int length) => $"HTTP header is larger than {length} bytes.";
         }
 
         sealed class LineParser : HeaderParser
@@ -847,7 +846,7 @@ namespace DotNetty.Codecs.Http
                 return base.Parse(buffer);
             }
 
-            protected override TooLongFrameException NewException(int maxLength) => new TooLongFrameException($"An HTTP line is larger than {maxLength} bytes.");
+            protected override string NewExceptionMessage(int maxLength) => $"An HTTP line is larger than {maxLength} bytes.";
         }
     }
 }

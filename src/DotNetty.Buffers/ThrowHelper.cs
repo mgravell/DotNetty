@@ -10,5 +10,7 @@ namespace DotNetty.Buffers
         public static void ThrowIndexOutOfRangeException(string message) => throw new IndexOutOfRangeException(message);
 
         public static void ThrowIllegalReferenceCountException(int count = 0) => throw new IllegalReferenceCountException(count);
+
+        public static void ThrowArgumentNullException(string message) => throw new ArgumentNullException(message);
     }
 }

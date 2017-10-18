@@ -5,6 +5,7 @@ namespace DotNetty.Buffers
 {
     using System;
     using System.Diagnostics.Contracts;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using DotNetty.Common.Internal;
     using DotNetty.Common.Internal.Logging;
@@ -526,27 +527,33 @@ namespace DotNetty.Buffers
 
         public static void Copy(AsciiString src, IByteBuffer dst) => Copy(src, 0, dst, src.Count);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(AsciiString src, int srcIdx, IByteBuffer dst, int dstIdx, int length)
         {
-            Contract.Requires(dst != null);
-
             if (MathUtil.IsOutOfBounds(srcIdx, length, src.Count))
             {
-                throw new IndexOutOfRangeException($"expected: 0 <= srcIdx({srcIdx}) <= srcIdx + length({length}) <= srcLen({src.Count})");
+                ThrowHelper.ThrowIndexOutOfRangeException($"expected: 0 <= srcIdx({srcIdx}) <= srcIdx + length({length}) <= srcLen({src.Count})");
             }
-
+            if (dst == null)
+            {
+                ThrowHelper.ThrowArgumentNullException(nameof(src));
+            }
+            // ReSharper disable once PossibleNullReferenceException
             dst.SetBytes(dstIdx, src.Array, srcIdx + src.Offset, length);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(AsciiString src, int srcIdx, IByteBuffer dst, int length)
         {
-            Contract.Requires(dst != null);
-
             if (MathUtil.IsOutOfBounds(srcIdx, length, src.Count))
             {
-                throw new IndexOutOfRangeException($"expected: 0 <= srcIdx({srcIdx}) <= srcIdx + length({length}) <= srcLen({src.Count})");
+                ThrowHelper.ThrowIndexOutOfRangeException($"expected: 0 <= srcIdx({srcIdx}) <= srcIdx + length({length}) <= srcLen({src.Count})");
             }
-
+            if (dst == null)
+            {
+                ThrowHelper.ThrowArgumentNullException(nameof(src));
+            }
+            // ReSharper disable once PossibleNullReferenceException
             dst.WriteBytes(src.Array, srcIdx + src.Offset, length);
         }
 

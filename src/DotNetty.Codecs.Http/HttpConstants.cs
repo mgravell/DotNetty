@@ -41,13 +41,14 @@ namespace DotNetty.Codecs.Http
         // Horizontal space in char
         public static readonly char HorizontalSpaceChar = (char)HorizontalSpace;
 
+        // For HttpObjectEncoder
         internal static readonly int CrlfShort = (CarriageReturn << 8) | LineFeed;
 
         internal static readonly int ZeroCrlfMedium = ('0' << 16) | CrlfShort;
 
         internal static readonly byte[] ZeroCrlfCrlf = { (byte)'0', CarriageReturn, LineFeed, CarriageReturn, LineFeed };
 
-        internal static readonly IByteBuffer CrlfBuf = Unpooled.UnreleasableBuffer(Unpooled.WrappedBuffer(new [] { CarriageReturn, LineFeed }));
+        internal static readonly IByteBuffer CrlfBuf = Unpooled.UnreleasableBuffer(Unpooled.WrappedBuffer(new[] { CarriageReturn, LineFeed }));
 
         internal static readonly IByteBuffer ZeroCrlfCrlfBuf = Unpooled.UnreleasableBuffer(Unpooled.WrappedBuffer(ZeroCrlfCrlf));
     }

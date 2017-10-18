@@ -10,6 +10,7 @@ namespace DotNetty.Codecs.Http
     static class HttpHeadersEncoder
     {
         static readonly int ColonAndSpaceShort = (HttpConstants.Colon << 8) | HttpConstants.HorizontalSpace;
+        static readonly int CrlfShort = (HttpConstants.CarriageReturn << 8) | HttpConstants.LineFeed;
 
         public static void EncoderHeader(ICharSequence name, ICharSequence value, IByteBuffer buf)
         {
@@ -24,7 +25,7 @@ namespace DotNetty.Codecs.Http
             offset += 2;
             WriteAscii(buf, offset, value);
             offset += valueLen;
-            buf.SetShort(offset, HttpConstants.CrlfShort);
+            buf.SetShort(offset, CrlfShort);
             offset += 2;
             buf.SetWriterIndex(offset);
         }

@@ -8,5 +8,7 @@ namespace DotNetty.Codecs.Http
     static class ThrowHelper
     {
         internal static void ThrowArgumentException(string message) => throw new ArgumentException(message);
+
+        internal static void ThrowTooLongFrameException(string message) => throw new TooLongFrameException(message);
     }
 }
