@@ -15,7 +15,7 @@ namespace DotNetty.Codecs.Http
 
     public class HttpVersion : IComparable<HttpVersion>, IComparable
     {
-        static readonly Regex VersionPattern = new Regex("(\\S+)/(\\d+)\\.(\\d+)");
+        static readonly Regex VersionPattern = new Regex("(\\S+)/(\\d+)\\.(\\d+)", RegexOptions.Compiled);
 
         static readonly AsciiString Http10String = new AsciiString("HTTP/1.0");
         static readonly AsciiString Http11String = new AsciiString("HTTP/1.1");
@@ -24,20 +24,14 @@ namespace DotNetty.Codecs.Http
         public static readonly HttpVersion Http11 = new HttpVersion("HTTP", 1, 1, true, true);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static HttpVersion ValueOf(ICharSequence text)
+        internal static HttpVersion ValueOf(AsciiString text)
         {
             if (text == null)
             {
                 ThrowHelper.ThrowArgumentException(nameof(text));
             }
-            if (text is AsciiString asciiString)
-            {
-                text = asciiString.Trim();
-            }
-            else
-            {
-                text = CharUtil.Trim(text);
-            }
+            // ReSharper disable once PossibleNullReferenceException
+            text = text.Trim();
             if (text.Count == 0)
             {
                 ThrowHelper.ThrowArgumentException("text is empty (possibly HTTP/0.9)");
@@ -54,7 +48,7 @@ namespace DotNetty.Codecs.Http
             return Version0(text) ?? new HttpVersion(text.ToString(), true);
         }
 
-        static HttpVersion Version0(ICharSequence text)
+        static HttpVersion Version0(AsciiString text)
         {
             if (Http11String.Equals(text))
             {

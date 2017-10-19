@@ -611,9 +611,8 @@ namespace DotNetty.Common.Utilities
                 return this;
             }
 
-            int index;
             byte oldCharByte = CharToByte(oldChar);
-            index = this.ForEachByte(new ByteProcessor.IndexOfProcessor(oldCharByte));
+            int index = this.ForEachByte(new ByteProcessor.IndexOfProcessor(oldCharByte));
             if (index == -1)
             {
                 return this;
