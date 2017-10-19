@@ -6,7 +6,6 @@ namespace DotNetty.Common.Utilities
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
-    using System.Linq;
     using System.Runtime.CompilerServices;
 
     public static class CharUtil
@@ -131,7 +130,7 @@ namespace DotNetty.Common.Utilities
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static long ParseLong(IReadOnlyList<char> str, int offset, int radix, bool negative)
+        static long ParseLong(ICharSequence str, int offset, int radix, bool negative)
         {
             long max = long.MinValue / radix;
             long result = 0, length = str.Count;
@@ -166,7 +165,7 @@ namespace DotNetty.Common.Utilities
             return result;
         }
 
-        static void ThrowFormatException(IReadOnlyList<char> str)  => throw new FormatException(new string(str.ToArray()));
+        static void ThrowFormatException(ICharSequence str)  => throw new FormatException(str.ToString());
 
         public static bool IsNullOrEmpty(ICharSequence sequence) => sequence == null || sequence.Count == 0;
 

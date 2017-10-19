@@ -1,10 +1,11 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable ConvertToAutoPropertyWhenPossible
+// ReSharper disable ConvertToAutoProperty
 namespace DotNetty.Codecs.Http
 {
     using System;
-    using System.Diagnostics.Contracts;
     using System.Text;
     using DotNetty.Buffers;
     using DotNetty.Common.Utilities;
@@ -295,11 +296,9 @@ namespace DotNetty.Codecs.Http
          */
         public static readonly HttpResponseStatus NetworkAuthenticationRequired = NewStatus(511, "Network Authentication Required");
 
-        /**
-             * Returns the {@link HttpResponseStatus} represented by the specified code.
-             * If the specified code is a standard HTTP getStatus code, a cached instance
-             * will be returned.  Otherwise, a new instance will be returned.
-             */
+        // Returns the {@link HttpResponseStatus} represented by the specified code.
+        // If the specified code is a standard HTTP getStatus code, a cached instance
+        // will be returned.  Otherwise, a new instance will be returned.
         public static HttpResponseStatus ValueOf(int code)
         {
             switch (code)
@@ -421,6 +420,8 @@ namespace DotNetty.Codecs.Http
             return new HttpResponseStatus(code);
         }
 
+        static HttpResponseStatus NewStatus(int statusCode, string reasonPhrase) => new HttpResponseStatus(statusCode, new AsciiString(reasonPhrase), true);
+
         public static HttpResponseStatus ParseLine(ICharSequence line)
         {
             string status = line.ToString();
@@ -436,9 +437,8 @@ namespace DotNetty.Codecs.Http
                     int code = int.Parse(status.Substring(0, space));
                     ICharSequence reasonPhrase = line.SubSequence(space + 1);
                     HttpResponseStatus responseStatus = ValueOf(code);
-                    return responseStatus.ReasonPhrase.Equals(reasonPhrase) 
-                        ? responseStatus 
-                        : new HttpResponseStatus(code, reasonPhrase);
+                    return AsciiString.ContentEquals(responseStatus.ReasonPhrase, reasonPhrase)
+                        ? responseStatus  : new HttpResponseStatus(code, reasonPhrase);
                 }
             }
             catch (Exception e)
@@ -484,7 +484,6 @@ namespace DotNetty.Codecs.Http
                 }
 
                 ++this.i;
-
                 return true;
             }
 
@@ -495,7 +494,7 @@ namespace DotNetty.Codecs.Http
                 if (codeEnd < this.asciiString.Count)
                 {
                     ICharSequence actualReason = this.asciiString.SubSequence(codeEnd + 1, this.asciiString.Count);
-                    if (!this.status.ReasonPhrase.Equals(actualReason))
+                    if (!AsciiString.ContentEquals(this.status.ReasonPhrase, actualReason))
                     {
                         this.status = new HttpResponseStatus(code, actualReason);
                     }
@@ -533,9 +532,11 @@ namespace DotNetty.Codecs.Http
             }
         }
 
-        static HttpResponseStatus NewStatus(int statusCode, string reasonPhrase) => 
-            new HttpResponseStatus(statusCode, new AsciiString(reasonPhrase) , true);
 
+        readonly int code;
+        readonly AsciiString codeAsText;
+        readonly HttpStatusClass codeClass;
+        readonly ICharSequence reasonPhrase;
         readonly byte[] bytes;
 
         HttpResponseStatus(int code) 
@@ -545,44 +546,60 @@ namespace DotNetty.Codecs.Http
 
         public HttpResponseStatus(int code, ICharSequence reasonPhrase, bool bytes = false)
         {
-            Contract.Requires(code >= 0);
-            Contract.Requires(reasonPhrase != null);
-
-            foreach (char c in reasonPhrase)
+            if (code < 0)
             {
-                // Check prohibited characters.
+                ThrowHelper.ThrowArgumentException($"code: {code} (expected: 0+)");
+            }
+            if (reasonPhrase == null)
+            {
+                ThrowHelper.ThrowArgumentException(nameof(reasonPhrase));
+            }
+
+            // ReSharper disable once PossibleNullReferenceException
+            // ReSharper disable once ForCanBeConvertedToForeach
+            for (int i = 0; i < reasonPhrase.Count; i++)
+            {
+                char c = reasonPhrase[i];
                 // Check prohibited characters.
                 switch (c)
                 {
                     case '\n':
                     case '\r':
-                        throw new ArgumentException($"reasonPhrase contains one of the following prohibited characters: \\r\\n: {reasonPhrase}");
+                        ThrowHelper.ThrowArgumentException($"reasonPhrase contains one of the following prohibited characters: \\r\\n: {reasonPhrase}");
+                        break;
                 }
             }
 
-            this.Code = code;
-            this.CodeAsText = new AsciiString(Convert.ToString(code));
-            this.ReasonPhrase = reasonPhrase;
+            this.code = code;
+            this.codeAsText = new AsciiString(Convert.ToString(code));
+            this.reasonPhrase = reasonPhrase;
             this.bytes = bytes ? Encoding.ASCII.GetBytes($"{code} {reasonPhrase}") : null;
-            this.CodeClass = HttpStatusClass.ValueOf(code);
+            this.codeClass = HttpStatusClass.ValueOf(code);
         }
 
-        public int Code { get; }
+        public int Code => this.code;
 
-        public AsciiString CodeAsText { get; }
+        public AsciiString CodeAsText => this.codeAsText;
 
-        public ICharSequence ReasonPhrase { get; }
+        public ICharSequence ReasonPhrase => this.reasonPhrase;
 
-        public HttpStatusClass CodeClass { get; }
+        public HttpStatusClass CodeClass => this.codeClass;
 
-        public override int GetHashCode() => this.Code;
+        public override int GetHashCode() => this.code;
 
-        public override bool Equals(object obj) => (obj is HttpResponseStatus) && this.Code == ((HttpResponseStatus)obj).Code;
+        public override bool Equals(object obj)
+        {
+            if (obj is HttpResponseStatus other)
+            {
+                return this.code == other.code;
+            }
+            return false;
+        }
 
-        public int CompareTo(HttpResponseStatus other) => this.Code - other.Code;
+        public int CompareTo(HttpResponseStatus other) => this.code - other.code;
 
         public override string ToString() => 
-            new StringBuilder(this.ReasonPhrase.Count + 5)
+            new StringBuilder(this.ReasonPhrase.Count + 4)
             .Append(this.Code)
             .Append(' ')
             .Append(this.ReasonPhrase)
@@ -592,9 +609,9 @@ namespace DotNetty.Codecs.Http
         {
             if (this.bytes == null)
             {
-                ByteBufferUtil.Copy(this.CodeAsText, buf);
+                ByteBufferUtil.Copy(this.codeAsText, buf);
                 buf.WriteByte(HttpConstants.HorizontalSpace);
-                buf.WriteCharSequence(this.ReasonPhrase, Encoding.ASCII);
+                buf.WriteCharSequence(this.reasonPhrase, Encoding.ASCII);
             }
             else
             {
