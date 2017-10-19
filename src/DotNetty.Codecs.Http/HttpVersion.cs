@@ -1,10 +1,13 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable ConvertToAutoPropertyWhenPossible
+// ReSharper disable ConvertToAutoProperty
 namespace DotNetty.Codecs.Http
 {
     using System;
     using System.Diagnostics.Contracts;
+    using System.Runtime.CompilerServices;
     using System.Text;
     using System.Text.RegularExpressions;
     using DotNetty.Buffers;
@@ -14,22 +17,30 @@ namespace DotNetty.Codecs.Http
     {
         static readonly Regex VersionPattern = new Regex("(\\S+)/(\\d+)\\.(\\d+)");
 
-        static readonly int Http10StringHash = AsciiString.GetHashCode(new AsciiString("HTTP/1.0"));
-        static readonly int Http11StringHash = AsciiString.GetHashCode(new AsciiString("HTTP/1.1"));
+        static readonly AsciiString Http10String = new AsciiString("HTTP/1.0");
+        static readonly AsciiString Http11String = new AsciiString("HTTP/1.1");
 
         public static readonly HttpVersion Http10 = new HttpVersion("HTTP", 1, 0, false, true);
         public static readonly HttpVersion Http11 = new HttpVersion("HTTP", 1, 1, true, true);
 
-        internal static HttpVersion ValueOf(ICharSequence seq)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static HttpVersion ValueOf(ICharSequence text)
         {
-            ICharSequence text = null;
-            if (seq != null)
+            if (text == null)
             {
-                text = CharUtil.Trim(seq);
+                ThrowHelper.ThrowArgumentException(nameof(text));
             }
-            if (text == null || text.Count == 0)
+            if (text is AsciiString asciiString)
             {
-                throw new ArgumentException("text is empty");
+                text = asciiString.Trim();
+            }
+            else
+            {
+                text = CharUtil.Trim(text);
+            }
+            if (text.Count == 0)
+            {
+                ThrowHelper.ThrowArgumentException("text is empty (possibly HTTP/0.9)");
             }
 
             // Try to match without convert to uppercase first as this is what 99% of all clients
@@ -45,13 +56,11 @@ namespace DotNetty.Codecs.Http
 
         static HttpVersion Version0(ICharSequence text)
         {
-            int hash = AsciiString.GetHashCode(text);
-            if (Http11StringHash == hash)
+            if (Http11String.Equals(text))
             {
                 return Http11;
             }
-
-            if (Http10StringHash == hash)
+            if (Http10String.Equals(text))
             {
                 return Http10;
             }
@@ -59,6 +68,11 @@ namespace DotNetty.Codecs.Http
             return null;
         }
 
+        readonly string protocolName;
+        readonly int majorVersion;
+        readonly int minorVersion;
+        readonly AsciiString text;
+        readonly bool keepAliveDefault;
         readonly byte[] bytes;
 
         public HttpVersion(string text, bool keepAliveDefault)
@@ -77,84 +91,98 @@ namespace DotNetty.Codecs.Http
                 throw new ArgumentException("invalid version format: " + text);
             }
 
-            this.ProtocolName = m[1].Value;
-            this.MajorVersion = int.Parse(m[2].Value);
-            this.MinorVersion = int.Parse(m[3].Value);
-            this.Text = new AsciiString(this.ProtocolName + '/' + this.MajorVersion + '.' + this.MinorVersion);
-            this.IsKeepAliveDefault = keepAliveDefault;
+            this.protocolName = m[1].Value;
+            this.majorVersion = int.Parse(m[2].Value);
+            this.minorVersion = int.Parse(m[3].Value);
+            this.text = new AsciiString(this.ProtocolName + '/' + this.MajorVersion + '.' + this.MinorVersion);
+            this.keepAliveDefault = keepAliveDefault;
             this.bytes = null;
         }
 
+        // ReSharper disable PossibleNullReferenceException
         HttpVersion(string protocolName, int majorVersion, int minorVersion, bool keepAliveDefault, bool bytes = false)
         {
-            Contract.Requires(protocolName != null);
-            Contract.Requires(majorVersion >= 0 && minorVersion >= 0);
+            if (protocolName == null)
+            {
+                ThrowHelper.ThrowArgumentException(nameof(protocolName));
+            }
 
             protocolName = protocolName.Trim().ToUpper();
             if (string.IsNullOrEmpty(protocolName))
             {
-                throw new ArgumentException("empty protocolName");
+                ThrowHelper.ThrowArgumentException("empty protocolName");
             }
 
-            foreach (char t in protocolName)
+            // ReSharper disable once ForCanBeConvertedToForeach
+            for (int i = 0; i < protocolName.Length; i++)
             {
-                if (CharUtil.IsISOControl(t) || char.IsWhiteSpace(t))
+                char c = protocolName[i];
+                if (CharUtil.IsISOControl(c) || char.IsWhiteSpace(c))
                 {
-                    throw new ArgumentException("invalid character in protocolName");
+                    ThrowHelper.ThrowArgumentException($"invalid character {c} in protocolName");
                 }
             }
 
-            this.ProtocolName = protocolName;
-            this.MajorVersion = majorVersion;
-            this.MinorVersion = minorVersion;
-            string text = protocolName + '/' + majorVersion + '.' + minorVersion;
-            this.Text = new AsciiString(text);
-            this.IsKeepAliveDefault = keepAliveDefault;
+            if (majorVersion < 0)
+            {
+                ThrowHelper.ThrowArgumentException("negative majorVersion");
+            }
+            if (minorVersion < 0)
+            {
+                ThrowHelper.ThrowArgumentException("negative minorVersion");
+            }
 
-            this.bytes = bytes ? Encoding.ASCII.GetBytes(text) : null;
+            this.protocolName = protocolName;
+            this.majorVersion = majorVersion;
+            this.minorVersion = minorVersion;
+            this.text = new AsciiString(protocolName + '/' + majorVersion + '.' + minorVersion);
+            this.keepAliveDefault = keepAliveDefault;
+
+            this.bytes = bytes ? this.text.Array : null;
         }
+        // ReSharper restore PossibleNullReferenceException
 
-        public string ProtocolName { get; }
+        public string ProtocolName => this.protocolName;
 
-        public int MajorVersion { get; }
+        public int MajorVersion => this.majorVersion;
 
-        public int MinorVersion { get; }
+        public int MinorVersion => this.minorVersion;
 
-        public AsciiString Text { get; }
+        public AsciiString Text => this.text;
 
-        public bool IsKeepAliveDefault { get; }
+        public bool IsKeepAliveDefault => this.keepAliveDefault;
 
-        public override string ToString() => this.Text.ToString();
+        public override string ToString() => this.text.ToString();
 
-        public override int GetHashCode() => (this.ProtocolName.GetHashCode() * 31 + this.MajorVersion) * 31 + this.MinorVersion;
+        public override int GetHashCode() => (this.protocolName.GetHashCode() * 31 + this.majorVersion) * 31 + this.minorVersion;
 
         public override bool Equals(object obj)
         {
-            if (!(obj is HttpVersion)) {
-                return false;
+            if (obj is HttpVersion that)
+            {
+                return this.minorVersion == that.minorVersion
+                    && this.majorVersion == that.majorVersion
+                    && this.protocolName.Equals(that.protocolName);
             }
 
-            var that = (HttpVersion)obj;
-            return this.MinorVersion == that.MinorVersion 
-                && this.MajorVersion == that.MajorVersion 
-                && this.ProtocolName.Equals(that.ProtocolName);
+            return false;
         }
 
         public int CompareTo(HttpVersion other)
         {
-            int v = string.CompareOrdinal(this.ProtocolName, other.ProtocolName);
+            int v = string.CompareOrdinal(this.protocolName, other.protocolName);
             if (v != 0)
             {
                 return v;
             }
 
-            v = this.MajorVersion - other.MajorVersion;
+            v = this.majorVersion - other.majorVersion;
             if (v != 0)
             {
                 return v;
             }
 
-            return this.MinorVersion - other.MinorVersion;
+            return this.minorVersion - other.minorVersion;
         }
 
         public int CompareTo(object obj)
@@ -176,7 +204,7 @@ namespace DotNetty.Codecs.Http
         {
             if (this.bytes == null)
             {
-                buf.WriteCharSequence(this.Text, Encoding.ASCII);
+                buf.WriteCharSequence(this.text, Encoding.ASCII);
             }
             else
             {

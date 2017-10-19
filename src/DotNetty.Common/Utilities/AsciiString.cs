@@ -830,8 +830,7 @@ namespace DotNetty.Common.Utilities
                 && PlatformDependent.ByteArrayEquals(this.value, this.offset, other.value, other.offset, this.Count);
         }
 
-        public override bool Equals(object obj) => 
-            !ReferenceEquals(this, null) && obj is AsciiString && this.Equals((AsciiString)obj);
+        public override bool Equals(object obj) => this.Equals(obj as AsciiString);
 
         public override string ToString()
         {
