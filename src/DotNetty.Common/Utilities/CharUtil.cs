@@ -99,8 +99,13 @@ namespace DotNetty.Common.Utilities
             return result;
         }
 
-        public static long ParseLong(IReadOnlyList<char> str, int radix = 10)
+        public static long ParseLong(ICharSequence str, int radix = 10)
         {
+            if (str is AsciiString asciiString)
+            {
+                return asciiString.ParseLong(radix);
+            }
+
             if (str == null
                 || radix < MinRadix
                 || radix > MaxRadix)

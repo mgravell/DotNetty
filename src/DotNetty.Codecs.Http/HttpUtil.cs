@@ -14,126 +14,6 @@ namespace DotNetty.Codecs.Http
         static readonly AsciiString CharsetEquals = new AsciiString(HttpHeaderValues.Charset + "=");
         static readonly AsciiString Semicolon = new AsciiString(";");
 
-        public static ICharSequence GetCharset(IHttpMessage message)
-        {
-            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
-            return contentTypeValue != null ? GetCharset(contentTypeValue) : null;
-        }
-
-        public static ICharSequence GetCharset(ICharSequence contentTypeValue)
-        {
-            Contract.Requires(contentTypeValue != null);
-
-            int indexOfCharset = AsciiString.IndexOfIgnoreCaseAscii(contentTypeValue, CharsetEquals, 0);
-            if (indexOfCharset != AsciiString.IndexNotFound)
-            {
-                int indexOfEncoding = indexOfCharset + CharsetEquals.Count;
-                if (indexOfEncoding < contentTypeValue.Count)
-                {
-                    return contentTypeValue.SubSequence(indexOfEncoding, contentTypeValue.Count);
-                }
-            }
-
-            return null;
-        }
-
-        public static Encoding GetEncoding(IHttpMessage message) => GetEncoding(message, Encoding.UTF8);
-
-        public static Encoding GetEncoding(ICharSequence contentTypeValue) => 
-            contentTypeValue != null ? GetEncoding(contentTypeValue, Encoding.UTF8) : Encoding.UTF8;
-
-        public static Encoding GetEncoding(IHttpMessage message, Encoding defaultEncoding)
-        {
-            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
-            return contentTypeValue != null 
-                ? GetEncoding(contentTypeValue, defaultEncoding) 
-                : defaultEncoding;
-        }
-
-        public static Encoding GetEncoding(ICharSequence contentTypeValue, Encoding defaultEncoding)
-        {
-            if (contentTypeValue != null)
-            {
-                ICharSequence charsetCharSequence = GetCharset(contentTypeValue);
-                if (charsetCharSequence != null)
-                {
-                    try
-                    {
-                        return Encoding.GetEncoding(charsetCharSequence.ToString());
-                    }
-                    catch (ArgumentException)
-                    {
-                        return defaultEncoding;
-                    }
-                }
-            }
-
-            return defaultEncoding;
-        }
-
-        public static ICharSequence GetMimeType(IHttpMessage message)
-        {
-            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
-            return contentTypeValue != null ? GetMimeType(contentTypeValue) : null;
-        }
-
-        public static ICharSequence GetMimeType(ICharSequence contentTypeValue)
-        {
-            Contract.Requires(contentTypeValue != null);
-
-            int indexOfSemicolon = AsciiString.IndexOfIgnoreCaseAscii(contentTypeValue, Semicolon, 0);
-            if (indexOfSemicolon != AsciiString.IndexNotFound)
-            {
-                return contentTypeValue.SubSequence(0, indexOfSemicolon);
-            }
-
-            return contentTypeValue.Count > 0 ? contentTypeValue : null;
-        }
-
-        public static void Set100ContinueExpected(IHttpMessage message, bool expected)
-        {
-            if (expected)
-            {
-                message.Headers.Set(HttpHeaderNames.Expect, HttpHeaderValues.Continue);
-            }
-            else
-            {
-                message.Headers.Remove(HttpHeaderNames.Expect);
-            }
-        }
-
-        public static bool Is100ContinueExpected(IHttpMessage message)
-        {
-            if (!IsExpectHeaderValid(message))
-            {
-                return false;
-            }
-
-            ICharSequence expectValue = message.Headers.Get(HttpHeaderNames.Expect);
-            // unquoted tokens in the expect header are case-insensitive, thus 100-continue is case insensitive
-            return HttpHeaderValues.Continue.ContentEqualsIgnoreCase(expectValue);
-        }
-
-        internal static bool IsUnsupportedExpectation(IHttpMessage message)
-        {
-            if (!IsExpectHeaderValid(message))
-            {
-                return false;
-            }
-
-            ICharSequence expectValue = message.Headers.Get(HttpHeaderNames.Expect);
-            return expectValue != null && !HttpHeaderValues.Continue.ContentEqualsIgnoreCase(expectValue);
-        }
-
-        /*
-         * Expect: 100-continue is for requests only and it works only on HTTP/1.1 or later. Note further that RFC 7231
-         * section 5.1.1 says "A server that receives a 100-continue expectation in an HTTP/1.0 request MUST ignore
-         * that expectation."
-         */
-        static bool IsExpectHeaderValid(IHttpMessage message) => message is IHttpRequest 
-            && message.ProtocolVersion.CompareTo(HttpVersion.Http11) >= 0;
-
-
         public static bool IsKeepAlive(IHttpMessage message)
         {
             ICharSequence connection = message.Headers.Get(HttpHeaderNames.Connection);
@@ -227,25 +107,25 @@ namespace DotNetty.Codecs.Http
             return defaultValue;
         }
 
+        public static int GetContentLength(IHttpMessage message, int defaultValue) => (int)Math.Min(int.MaxValue, GetContentLength(message, (long)defaultValue));
+
         static int GetWebSocketContentLength(IHttpMessage message)
         {
             // WebSocket messages have constant content-lengths.
             HttpHeaders h = message.Headers;
-
-            if (message is IHttpRequest request)
+            if (message is IHttpRequest req)
             {
-                if (HttpMethod.Get.Equals(request.Method)
-                    && h.Contains(HttpHeaderNames.SecWebsocketKey1) 
+                if (HttpMethod.Get.Equals(req.Method)
+                    && h.Contains(HttpHeaderNames.SecWebsocketKey1)
                     && h.Contains(HttpHeaderNames.SecWebsocketKey2))
                 {
                     return 8;
                 }
             }
-            else
+            else if (message is IHttpResponse res)
             {
-                var res = message as IHttpResponse;
-                if (res?.Status.Code == 101 
-                    && h.Contains(HttpHeaderNames.SecWebsocketOrigin) 
+                if (res.Status.Code == 101
+                    && h.Contains(HttpHeaderNames.SecWebsocketOrigin)
                     && h.Contains(HttpHeaderNames.SecWebsocketLocation))
                 {
                     return 16;
@@ -259,6 +139,47 @@ namespace DotNetty.Codecs.Http
         public static void SetContentLength(IHttpMessage message, long length) => message.Headers.Set(HttpHeaderNames.ContentLength, length);
 
         public static bool IsContentLengthSet(IHttpMessage message) => message.Headers.Contains(HttpHeaderNames.ContentLength);
+
+        public static bool Is100ContinueExpected(IHttpMessage message)
+        {
+            if (!IsExpectHeaderValid(message))
+            {
+                return false;
+            }
+
+            ICharSequence expectValue = message.Headers.Get(HttpHeaderNames.Expect);
+            // unquoted tokens in the expect header are case-insensitive, thus 100-continue is case insensitive
+            return HttpHeaderValues.Continue.ContentEqualsIgnoreCase(expectValue);
+        }
+
+        internal static bool IsUnsupportedExpectation(IHttpMessage message)
+        {
+            if (!IsExpectHeaderValid(message))
+            {
+                return false;
+            }
+
+            ICharSequence expectValue = message.Headers.Get(HttpHeaderNames.Expect);
+            return expectValue != null && !HttpHeaderValues.Continue.ContentEqualsIgnoreCase(expectValue);
+        }
+
+        // Expect: 100-continue is for requests only and it works only on HTTP/1.1 or later. Note further that RFC 7231
+        // section 5.1.1 says "A server that receives a 100-continue expectation in an HTTP/1.0 request MUST ignore
+        // that expectation."
+        static bool IsExpectHeaderValid(IHttpMessage message) => message is IHttpRequest
+            && message.ProtocolVersion.CompareTo(HttpVersion.Http11) >= 0;
+
+        public static void Set100ContinueExpected(IHttpMessage message, bool expected)
+        {
+            if (expected)
+            {
+                message.Headers.Set(HttpHeaderNames.Expect, HttpHeaderValues.Continue);
+            }
+            else
+            {
+                message.Headers.Remove(HttpHeaderNames.Expect);
+            }
+        }
 
         public static bool IsTransferEncodingChunked(IHttpMessage message) => message.Headers.Contains(HttpHeaderNames.TransferEncoding, HttpHeaderValues.Chunked, true);
 
@@ -285,7 +206,6 @@ namespace DotNetty.Codecs.Http
                         values.Remove(value);
                     }
                 }
-
                 if (values.Count == 0)
                 {
                     m.Headers.Remove(HttpHeaderNames.TransferEncoding);
@@ -295,6 +215,82 @@ namespace DotNetty.Codecs.Http
                     m.Headers.Set(HttpHeaderNames.TransferEncoding, values);
                 }
             }
+        }
+
+        public static ICharSequence GetCharset(IHttpMessage message)
+        {
+            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
+            return contentTypeValue != null ? GetCharset(contentTypeValue) : null;
+        }
+
+        public static ICharSequence GetCharset(ICharSequence contentTypeValue)
+        {
+            Contract.Requires(contentTypeValue != null);
+
+            int indexOfCharset = AsciiString.IndexOfIgnoreCaseAscii(contentTypeValue, CharsetEquals, 0);
+            if (indexOfCharset != AsciiString.IndexNotFound)
+            {
+                int indexOfEncoding = indexOfCharset + CharsetEquals.Count;
+                if (indexOfEncoding < contentTypeValue.Count)
+                {
+                    return contentTypeValue.SubSequence(indexOfEncoding, contentTypeValue.Count);
+                }
+            }
+
+            return null;
+        }
+
+        public static Encoding GetEncoding(IHttpMessage message) => GetEncoding(message, Encoding.UTF8);
+
+        public static Encoding GetEncoding(ICharSequence contentTypeValue) => 
+            contentTypeValue != null ? GetEncoding(contentTypeValue, Encoding.UTF8) : Encoding.UTF8;
+
+        public static Encoding GetEncoding(IHttpMessage message, Encoding defaultEncoding)
+        {
+            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
+            return contentTypeValue != null 
+                ? GetEncoding(contentTypeValue, defaultEncoding) 
+                : defaultEncoding;
+        }
+
+        public static Encoding GetEncoding(ICharSequence contentTypeValue, Encoding defaultEncoding)
+        {
+            if (contentTypeValue != null)
+            {
+                ICharSequence charsetCharSequence = GetCharset(contentTypeValue);
+                if (charsetCharSequence != null)
+                {
+                    try
+                    {
+                        return Encoding.GetEncoding(charsetCharSequence.ToString());
+                    }
+                    catch (ArgumentException)
+                    {
+                        return defaultEncoding;
+                    }
+                }
+            }
+
+            return defaultEncoding;
+        }
+
+        public static ICharSequence GetMimeType(IHttpMessage message)
+        {
+            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
+            return contentTypeValue != null ? GetMimeType(contentTypeValue) : null;
+        }
+
+        public static ICharSequence GetMimeType(ICharSequence contentTypeValue)
+        {
+            Contract.Requires(contentTypeValue != null);
+
+            int indexOfSemicolon = AsciiString.IndexOfIgnoreCaseAscii(contentTypeValue, Semicolon, 0);
+            if (indexOfSemicolon != AsciiString.IndexNotFound)
+            {
+                return contentTypeValue.SubSequence(0, indexOfSemicolon);
+            }
+
+            return contentTypeValue.Count > 0 ? contentTypeValue : null;
         }
     }
 }
