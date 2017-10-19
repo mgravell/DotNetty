@@ -49,12 +49,12 @@ namespace DotNetty.Codecs.Http.Tests
 
             var message = new DefaultHttpResponse(HttpVersion.Http11, HttpResponseStatus.OK);
             message.Headers.Set(HttpHeaderNames.ContentType, QuotesCharsetContentType);
-            Assert.Equal("\"utf8\"", HttpUtil.GetCharset(message).ToString());
-            Assert.Equal("\"utf8\"", HttpUtil.GetCharset(new AsciiString(QuotesCharsetContentType)));
+            Assert.Equal("\"utf8\"", HttpUtil.GetCharsetAsSequence(message).ToString());
+            Assert.Equal("\"utf8\"", HttpUtil.GetCharsetAsSequence(new AsciiString(QuotesCharsetContentType)));
 
             message.Headers.Set(HttpHeaderNames.ContentType, "text/html");
-            Assert.Null(HttpUtil.GetCharset(message));
-            Assert.Null(HttpUtil.GetCharset(new AsciiString(SimpleContentType)));
+            Assert.Null(HttpUtil.GetCharsetAsSequence(message));
+            Assert.Null(HttpUtil.GetCharsetAsSequence(new AsciiString(SimpleContentType)));
         }
 
         [Fact]
@@ -65,12 +65,12 @@ namespace DotNetty.Codecs.Http.Tests
 
             var message = new DefaultHttpResponse(HttpVersion.Http11, HttpResponseStatus.OK);
             message.Headers.Set(HttpHeaderNames.ContentType, NormalContentType);
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(message));
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(new AsciiString(NormalContentType)));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(message));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(new AsciiString(NormalContentType)));
 
             message.Headers.Set(HttpHeaderNames.ContentType, UpperCaseNormalContentType);
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(message));
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(new AsciiString(UpperCaseNormalContentType)));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(message));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(new AsciiString(UpperCaseNormalContentType)));
         }
 
         [Fact]
@@ -81,20 +81,20 @@ namespace DotNetty.Codecs.Http.Tests
 
             var message = new DefaultHttpResponse(HttpVersion.Http11, HttpResponseStatus.OK);
             message.Headers.Set(HttpHeaderNames.ContentType, SimpleContentType);
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(message));
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(new AsciiString(SimpleContentType)));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(message));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(new AsciiString(SimpleContentType)));
 
             message.Headers.Set(HttpHeaderNames.ContentType, SimpleContentType);
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(message, Encoding.UTF8));
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(new AsciiString(SimpleContentType), Encoding.UTF8));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(message, Encoding.UTF8));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(new AsciiString(SimpleContentType), Encoding.UTF8));
 
             message.Headers.Set(HttpHeaderNames.ContentType, ContentTypeWithIncorrectCharset);
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(message));
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(new AsciiString(ContentTypeWithIncorrectCharset)));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(message));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(new AsciiString(ContentTypeWithIncorrectCharset)));
 
             message.Headers.Set(HttpHeaderNames.ContentType, ContentTypeWithIncorrectCharset);
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(message, Encoding.UTF8));
-            Assert.Equal(Encoding.UTF8, HttpUtil.GetEncoding(new AsciiString(ContentTypeWithIncorrectCharset), Encoding.UTF8));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(message, Encoding.UTF8));
+            Assert.Equal(Encoding.UTF8, HttpUtil.GetCharset(new AsciiString(ContentTypeWithIncorrectCharset), Encoding.UTF8));
         }
 
         [Fact]
@@ -118,13 +118,27 @@ namespace DotNetty.Codecs.Http.Tests
         }
 
         [Fact]
-        public void GetContentLengthDefaultValue()
+        public void GetContentLengthThrowsNumberFormatException()
         {
             var message = new DefaultHttpResponse(HttpVersion.Http11, HttpResponseStatus.OK);
-            Assert.Null(message.Headers.Get(HttpHeaderNames.ContentLength));
             message.Headers.Set(HttpHeaderNames.ContentLength, "bar");
-            Assert.Equal("bar", message.Headers.Get(HttpHeaderNames.ContentLength));
-            Assert.Equal(1L, HttpUtil.GetContentLength(message, 1L));
+            Assert.Throws<FormatException>(() => HttpUtil.GetContentLength(message));
+        }
+
+        [Fact]
+        public void GetContentLengthIntDefaultValueThrowsNumberFormatException()
+        {
+            var message = new DefaultHttpResponse(HttpVersion.Http11, HttpResponseStatus.OK);
+            message.Headers.Set(HttpHeaderNames.ContentLength, "bar");
+            Assert.Throws<FormatException>(() => HttpUtil.GetContentLength(message, 1));
+        }
+
+        [Fact]
+        public void GetContentLengthLongDefaultValueThrowsNumberFormatException()
+        {
+            var message = new DefaultHttpResponse(HttpVersion.Http11, HttpResponseStatus.OK);
+            message.Headers.Set(HttpHeaderNames.ContentLength, "bar");
+            Assert.Throws<FormatException>(() => HttpUtil.GetContentLength(message, 1L));
         }
 
         [Fact]
@@ -139,6 +153,38 @@ namespace DotNetty.Codecs.Http.Tests
             
             var expected = new List<string> {"chunked"};
             Assert.True(expected.SequenceEqual(list.Select(x => x.ToString())));
+        }
+
+        static IEnumerable<string> AllPossibleCasesOfContinue()
+        {
+            var cases = new List<string>();
+            string c = "continue";
+            for (int i = 0; i < Math.Pow(2, c.Length); i++)
+            {
+                var sb = new StringBuilder(c.Length);
+                int j = i;
+                int k = 0;
+                while (j > 0)
+                {
+                    if ((j & 1) == 1)
+                    {
+                        sb.Append(char.ToUpper(c[k++]));
+                    }
+                    else
+                    {
+                        sb.Append(c[k++]);
+                    }
+                    j >>= 1;
+                }
+                for (; k < c.Length; k++)
+                {
+                    sb.Append(c[k]);
+                }
+
+                cases.Add(sb.ToString());
+            }
+
+            return cases;
         }
 
         [Fact]
@@ -206,38 +252,6 @@ namespace DotNetty.Codecs.Http.Tests
         {
             Assert.Equal(expected, HttpUtil.IsUnsupportedExpectation(message));
             ReferenceCountUtil.Release(message);
-        }
-
-        static IEnumerable<string> AllPossibleCasesOfContinue()
-        {
-            var cases = new List<string>();
-            string c = "continue";
-            for (int i = 0; i < Math.Pow(2, c.Length); i++)
-            {
-                var sb = new StringBuilder(c.Length);
-                int j = i;
-                int k = 0;
-                while (j > 0)
-                {
-                    if ((j & 1) == 1)
-                    {
-                        sb.Append(char.ToUpper(c[k++]));
-                    }
-                    else
-                    {
-                        sb.Append(c[k++]);
-                    }
-                    j >>= 1;
-                }
-                for (; k < c.Length; k++)
-                {
-                    sb.Append(c[k]);
-                }
-
-                cases.Add(sb.ToString());
-            }
-
-            return cases;
         }
     }
 }

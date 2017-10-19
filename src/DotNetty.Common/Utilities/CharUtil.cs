@@ -99,6 +99,7 @@ namespace DotNetty.Common.Utilities
             return result;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long ParseLong(ICharSequence str, int radix = 10)
         {
             if (str is AsciiString asciiString)
@@ -110,24 +111,26 @@ namespace DotNetty.Common.Utilities
                 || radix < MinRadix
                 || radix > MaxRadix)
             {
-                throw new FormatException(new string(str?.ToArray()));
+                ThrowFormatException(str);
             }
 
+            // ReSharper disable once PossibleNullReferenceException
             int length = str.Count;
             int i = 0;
             if (length == 0)
             {
-                throw new FormatException(new string(str.ToArray()));
+                ThrowFormatException(str);
             }
             bool negative = str[i] == '-';
             if (negative && ++i == length)
             {
-                throw new FormatException(new string(str.ToArray()));
+                ThrowFormatException(str);
             }
 
             return ParseLong(str, i, radix, negative);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static long ParseLong(IReadOnlyList<char> str, int offset, int radix, bool negative)
         {
             long max = long.MinValue / radix;
@@ -137,16 +140,16 @@ namespace DotNetty.Common.Utilities
                 int digit = Digit(str[offset++], radix);
                 if (digit == -1)
                 {
-                    throw new FormatException(new string(str.ToArray()));
+                    ThrowFormatException(str);
                 }
                 if (max > result)
                 {
-                    throw new FormatException(new string(str.ToArray()));
+                    ThrowFormatException(str);
                 }
                 long next = result * radix - digit;
                 if (next > result)
                 {
-                    throw new FormatException(new string(str.ToArray()));
+                    ThrowFormatException(str);
                 }
                 result = next;
             }
@@ -156,17 +159,18 @@ namespace DotNetty.Common.Utilities
                 result = -result;
                 if (result < 0)
                 {
-                    throw new FormatException(new string(str.ToArray()));
+                    ThrowFormatException(str);
                 }
             }
 
             return result;
         }
 
+        static void ThrowFormatException(IReadOnlyList<char> str)  => throw new FormatException(new string(str.ToArray()));
+
         public static bool IsNullOrEmpty(ICharSequence sequence) => sequence == null || sequence.Count == 0;
 
-        public static ICharSequence[] Split(ICharSequence sequence, params char[] separator) => 
-            Split(sequence, 0, separator);
+        public static ICharSequence[] Split(ICharSequence sequence, params char[] separator) => Split(sequence, 0, separator);
 
         public static ICharSequence[] Split(ICharSequence sequence, int startIndex, params char[] separator)
         {

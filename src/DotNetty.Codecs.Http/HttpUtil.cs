@@ -85,14 +85,7 @@ namespace DotNetty.Codecs.Http
             ICharSequence value = message.Headers.Get(HttpHeaderNames.ContentLength);
             if (value != null)
             {
-                try
-                {
-                    return CharUtil.ParseLong(value);
-                }
-                catch (FormatException)
-                {
-                    return defaultValue;
-                }
+                return CharUtil.ParseLong(value);
             }
 
             // We know the content length if it's a Web Socket message even if
@@ -217,47 +210,21 @@ namespace DotNetty.Codecs.Http
             }
         }
 
-        public static ICharSequence GetCharset(IHttpMessage message)
+        public static Encoding GetCharset(IHttpMessage message) => GetCharset(message, Encoding.UTF8);
+
+        public static Encoding GetCharset(ICharSequence contentTypeValue) => contentTypeValue != null ? GetCharset(contentTypeValue, Encoding.UTF8) : Encoding.UTF8;
+
+        public static Encoding GetCharset(IHttpMessage message, Encoding defaultCharset)
         {
             ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
-            return contentTypeValue != null ? GetCharset(contentTypeValue) : null;
+            return contentTypeValue != null ? GetCharset(contentTypeValue, defaultCharset) : defaultCharset;
         }
 
-        public static ICharSequence GetCharset(ICharSequence contentTypeValue)
-        {
-            Contract.Requires(contentTypeValue != null);
-
-            int indexOfCharset = AsciiString.IndexOfIgnoreCaseAscii(contentTypeValue, CharsetEquals, 0);
-            if (indexOfCharset != AsciiString.IndexNotFound)
-            {
-                int indexOfEncoding = indexOfCharset + CharsetEquals.Count;
-                if (indexOfEncoding < contentTypeValue.Count)
-                {
-                    return contentTypeValue.SubSequence(indexOfEncoding, contentTypeValue.Count);
-                }
-            }
-
-            return null;
-        }
-
-        public static Encoding GetEncoding(IHttpMessage message) => GetEncoding(message, Encoding.UTF8);
-
-        public static Encoding GetEncoding(ICharSequence contentTypeValue) => 
-            contentTypeValue != null ? GetEncoding(contentTypeValue, Encoding.UTF8) : Encoding.UTF8;
-
-        public static Encoding GetEncoding(IHttpMessage message, Encoding defaultEncoding)
-        {
-            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
-            return contentTypeValue != null 
-                ? GetEncoding(contentTypeValue, defaultEncoding) 
-                : defaultEncoding;
-        }
-
-        public static Encoding GetEncoding(ICharSequence contentTypeValue, Encoding defaultEncoding)
+        public static Encoding GetCharset(ICharSequence contentTypeValue, Encoding defaultCharset)
         {
             if (contentTypeValue != null)
             {
-                ICharSequence charsetCharSequence = GetCharset(contentTypeValue);
+                ICharSequence charsetCharSequence = GetCharsetAsSequence(contentTypeValue);
                 if (charsetCharSequence != null)
                 {
                     try
@@ -266,12 +233,45 @@ namespace DotNetty.Codecs.Http
                     }
                     catch (ArgumentException)
                     {
-                        return defaultEncoding;
+                        return defaultCharset;
                     }
+                }
+                else
+                {
+                    return defaultCharset;
+                }
+            }
+            else
+            {
+                return defaultCharset;
+            }
+        }
+
+        public static ICharSequence GetCharsetAsSequence(IHttpMessage message)
+        {
+            ICharSequence contentTypeValue = message.Headers.Get(HttpHeaderNames.ContentType);
+            return contentTypeValue != null ? GetCharsetAsSequence(contentTypeValue) : null;
+        }
+
+        public static ICharSequence GetCharsetAsSequence(ICharSequence contentTypeValue)
+        {
+            if (contentTypeValue == null)
+            {
+                ThrowHelper.ThrowArgumentException(nameof(contentTypeValue));
+            }
+
+            int indexOfCharset = AsciiString.IndexOfIgnoreCaseAscii(contentTypeValue, CharsetEquals, 0);
+            if (indexOfCharset != AsciiString.IndexNotFound)
+            {
+                int indexOfEncoding = indexOfCharset + CharsetEquals.Count;
+                // ReSharper disable once PossibleNullReferenceException
+                if (indexOfEncoding < contentTypeValue.Count)
+                {
+                    return contentTypeValue.SubSequence(indexOfEncoding, contentTypeValue.Count);
                 }
             }
 
-            return defaultEncoding;
+            return null;
         }
 
         public static ICharSequence GetMimeType(IHttpMessage message)
