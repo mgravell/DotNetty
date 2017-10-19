@@ -46,8 +46,26 @@ namespace DotNetty.Codecs.Http
 
         State currentState = State.SkipControlChars;
 
-        protected HttpObjectDecoder(int maxInitialLineLength = 4096, int maxHeaderSize = 8192, int maxChunkSize = 8192,
-            bool chunkedSupported = true, bool validateHeaders = true, int initialBufferSize = 128)
+        protected HttpObjectDecoder() : this(4096, 8192, 8192, true)
+        {
+        }
+
+        protected HttpObjectDecoder(
+            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool chunkedSupported)
+            : this(maxInitialLineLength, maxHeaderSize, maxChunkSize, chunkedSupported, true)
+        {
+        }
+
+        protected HttpObjectDecoder(
+            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize,
+            bool chunkedSupported, bool validateHeaders)
+            : this(maxInitialLineLength, maxHeaderSize, maxChunkSize, chunkedSupported, validateHeaders, 128)
+        {
+        }
+
+        protected HttpObjectDecoder(
+            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize,
+            bool chunkedSupported, bool validateHeaders, int initialBufferSize)
         {
             Contract.Requires(maxInitialLineLength > 0);
             Contract.Requires(maxHeaderSize > 0);

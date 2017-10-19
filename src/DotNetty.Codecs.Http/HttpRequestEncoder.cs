@@ -15,12 +15,12 @@ namespace DotNetty.Codecs.Http
         static readonly int SlashAndSpaceShort = (Slash << 8) | HttpConstants.HorizontalSpace;
         static readonly int SpaceSlashAndSpaceMedium = (HttpConstants.HorizontalSpace << 16) | SlashAndSpaceShort;
 
-        public override bool AcceptOutboundMessage(object msg) => 
-            base.AcceptOutboundMessage(msg) && !(msg is IHttpResponse);
+        public override bool AcceptOutboundMessage(object msg) => base.AcceptOutboundMessage(msg) && !(msg is IHttpResponse);
 
         protected internal override void EncodeInitialLine(IByteBuffer buf, IHttpRequest request)
         {
             ByteBufferUtil.Copy(request.Method.AsciiName(), buf);
+
             string uri = request.Uri;
 
             if (string.IsNullOrEmpty(uri))
@@ -44,22 +44,21 @@ namespace DotNetty.Codecs.Http
                     int index = uri.IndexOf(QuestionMark, start);
                     if (index == -1)
                     {
-                        if (uri.LastIndexOf(Slash) <= start)
+                        if (uri.LastIndexOf(Slash) < start)
                         {
                             needSlash = true;
                         }
                     }
                     else
                     {
-                        if (uri.LastIndexOf(Slash, index) <= start)
+                        if (uri.LastIndexOf(Slash, index) < start)
                         {
                             uriCharSequence.Insert(index, Slash);
                         }
                     }
                 }
 
-                buf.WriteByte(HttpConstants.HorizontalSpace)
-                    .WriteCharSequence(uriCharSequence, Encoding.UTF8);
+                buf.WriteByte(HttpConstants.HorizontalSpace).WriteCharSequence(uriCharSequence, Encoding.UTF8);
                 if (needSlash)
                 {
                     // write "/ " after uri

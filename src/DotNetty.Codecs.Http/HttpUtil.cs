@@ -232,8 +232,7 @@ namespace DotNetty.Codecs.Http
             // WebSocket messages have constant content-lengths.
             HttpHeaders h = message.Headers;
 
-            var request = message as IHttpRequest;
-            if (request != null)
+            if (message is IHttpRequest request)
             {
                 if (HttpMethod.Get.Equals(request.Method)
                     && h.Contains(HttpHeaderNames.SecWebsocketKey1) 

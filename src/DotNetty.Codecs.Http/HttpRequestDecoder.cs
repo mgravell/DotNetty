@@ -7,25 +7,36 @@ namespace DotNetty.Codecs.Http
 
     public class HttpRequestDecoder : HttpObjectDecoder
     {
-        public HttpRequestDecoder(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders, int initialBufferSize) 
-            : this(maxInitialLineLength, maxHeaderSize, maxChunkSize, true, validateHeaders, initialBufferSize)
+        public HttpRequestDecoder()
         {
         }
 
-        public HttpRequestDecoder(int maxInitialLineLength = 4096, int maxHeaderSize = 8192, int maxChunkSize = 8192, 
-            bool chunkedSupported = true, bool validateHeaders = true, int initialBufferSize = 128) 
-            : base(maxInitialLineLength, maxHeaderSize, maxChunkSize, chunkedSupported, validateHeaders, initialBufferSize)
+        public HttpRequestDecoder(
+            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize)
+            : base(maxInitialLineLength, maxHeaderSize, maxChunkSize, true)
         {
         }
 
-        protected override bool IsDecodingRequest() => true;
+        public HttpRequestDecoder(
+            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders)
+            : base(maxInitialLineLength, maxHeaderSize, maxChunkSize, true, validateHeaders)
+        {
+        }
+
+        public HttpRequestDecoder(
+            int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders, 
+            int initialBufferSize) 
+            : base(maxInitialLineLength, maxHeaderSize, maxChunkSize, true, validateHeaders, initialBufferSize)
+        {
+        }
 
         protected sealed override IHttpMessage CreateMessage(AsciiString[] initialLine) =>
             new DefaultHttpRequest(
                 HttpVersion.ValueOf(initialLine[2]),
                 HttpMethod.ValueOf(initialLine[0]), initialLine[1].ToString(), this.ValidateHeaders);
 
-        protected override IHttpMessage CreateInvalidMessage() => 
-            new DefaultFullHttpRequest(HttpVersion.Http10, HttpMethod.Get, "/bad-request", this.ValidateHeaders);
+        protected override IHttpMessage CreateInvalidMessage() =>  new DefaultFullHttpRequest(HttpVersion.Http10, HttpMethod.Get, "/bad-request", this.ValidateHeaders);
+
+        protected override bool IsDecodingRequest() => true;
     }
 }

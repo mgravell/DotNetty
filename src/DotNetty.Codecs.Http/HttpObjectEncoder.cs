@@ -181,7 +181,7 @@ namespace DotNetty.Codecs.Http
         }
 
         // Allows to sanitize headers of the message before encoding these.
-        protected void SanitizeHeadersBeforeEncode(T msg, bool isAlwaysEmpty)
+        protected virtual void SanitizeHeadersBeforeEncode(T msg, bool isAlwaysEmpty)
         {
             // noop
         }

@@ -14,7 +14,7 @@ namespace DotNetty.Codecs.Http
         }
 
         public HttpResponseDecoder(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize) 
-            : base(maxInitialLineLength, maxHeaderSize, maxChunkSize)
+            : base(maxInitialLineLength, maxHeaderSize, maxChunkSize, true)
         {
         }
 
@@ -33,8 +33,7 @@ namespace DotNetty.Codecs.Http
                 HttpVersion.ValueOf(initialLine[0]),
                 new HttpResponseStatus(initialLine[1].ParseInt() , initialLine[2]), this.ValidateHeaders);
 
-        protected override IHttpMessage CreateInvalidMessage() => 
-            new DefaultFullHttpResponse(HttpVersion.Http10, UnknownStatus, this.ValidateHeaders);
+        protected override IHttpMessage CreateInvalidMessage() => new DefaultFullHttpResponse(HttpVersion.Http10, UnknownStatus, this.ValidateHeaders);
 
         protected override bool IsDecodingRequest() => false;
     }

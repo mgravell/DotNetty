@@ -26,29 +26,40 @@ namespace DotNetty.Codecs.Http
             {
                 return Informational;
             }
-
             if (Contains(Success, code))
             {
                 return Success;
             }
-
             if (Contains(Redirection, code))
             {
                 return Redirection;
             }
-
             if (Contains(ClientError, code))
             {
                 return ClientError;
             }
-
             if (Contains(ServerError, code))
             {
                 return ServerError;
             }
+            return Unknown;
+        }
+
+        public static HttpStatusClass ValueOf(ICharSequence code)
+        {
+            if (code != null && code.Count == 3)
+            {
+                char c0 = code[0];
+                return IsDigit(c0) && IsDigit(code[1]) && IsDigit(code[2]) ? ValueOf(Digit(c0) * 100)
+                    : Unknown;
+            }
 
             return Unknown;
         }
+
+        static int Digit(char c) => c - '0';
+
+        static bool IsDigit(char c) => c >= '0' && c <= '9';
 
         readonly int min;
         readonly int max;
@@ -57,7 +68,7 @@ namespace DotNetty.Codecs.Http
         {
             this.min = min;
             this.max = max;
-            this.DefaultReasonPhrase = new AsciiString(defaultReasonPhrase);
+            this.DefaultReasonPhrase = AsciiString.Cached(defaultReasonPhrase);
         }
 
         public bool Contains(int code) => Contains(this, code);
@@ -76,8 +87,7 @@ namespace DotNetty.Codecs.Http
 
         public bool Equals(HttpStatusClass other) => this.min == other.min && this.max == other.max;
 
-        public override bool Equals(object obj) => 
-            obj is HttpStatusClass && this.Equals((HttpStatusClass)obj);
+        public override bool Equals(object obj) =>  obj is HttpStatusClass && this.Equals((HttpStatusClass)obj);
 
         public override int GetHashCode() => this.min.GetHashCode() ^ this.max.GetHashCode();
 
