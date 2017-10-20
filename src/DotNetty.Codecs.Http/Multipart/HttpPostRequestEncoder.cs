@@ -908,55 +908,37 @@ namespace DotNetty.Codecs.Http.Multipart
                 return EmptyLastHttpContent.Default;
             }
 
-            IByteBuffer buffer;
-            int size = HttpPostBodyUtil.ChunkSize;
             // first test if previous buffer is not empty
-            if (this.currentBuffer != null)
-            {
-                size -= this.currentBuffer.ReadableBytes;
-            }
+            int size = this.CalculateRemainingSize();
             if (size <= 0)
             {
                 // NextChunk from buffer
-                buffer = this.FillByteBuffer();
+                IByteBuffer buffer = this.FillByteBuffer();
                 return new DefaultHttpContent(buffer);
             }
             // size > 0
             if (this.currentData != null)
             {
                 // continue to read data
-                if (this.IsMultipart)
+                IHttpContent chunk = this.IsMultipart 
+                    ? this.EncodeNextChunkMultipart(size) 
+                    : this.EncodeNextChunkUrlEncoded(size);
+                if (chunk != null)
                 {
-                    IHttpContent chunk = this.EncodeNextChunkMultipart(size);
-                    if (chunk != null)
-                    {
-                        return chunk;
-                    }
+                    // NextChunk from data
+                    return chunk;
                 }
-                else
-                {
-                    IHttpContent chunk = this.EncodeNextChunkUrlEncoded(size);
-                    if (chunk != null)
-                    {
-                        // NextChunk Url from currentData
-                        return chunk;
-                    }
-                }
-                size = HttpPostBodyUtil.ChunkSize - this.currentBuffer.ReadableBytes;
+                size = this.CalculateRemainingSize();
             }
             if (this.MultipartList.Count < 2)
             {
-                this.isLastChunk = true;
-                // NextChunk as last non empty from buffer
-                buffer = this.currentBuffer;
-                this.currentBuffer = null;
-                return new DefaultHttpContent(buffer);
+                return this.LastChunk();
             }
             while (size > 0 && this.MultipartList.First != null)
             {
+                //iterator.next();
                 this.currentData = this.MultipartList.First.Value;
                 this.MultipartList.RemoveFirst();
-
                 IHttpContent chunk;
                 if (this.IsMultipart)
                 {
@@ -969,13 +951,28 @@ namespace DotNetty.Codecs.Http.Multipart
                 if (chunk == null)
                 {
                     // not enough
-                    size = HttpPostBodyUtil.ChunkSize - this.currentBuffer.ReadableBytes;
+                    size = this.CalculateRemainingSize();
                     continue;
                 }
                 // NextChunk from data
                 return chunk;
             }
             // end since no more data
+            return this.LastChunk();
+        }
+
+        int CalculateRemainingSize()
+        {
+            int size = HttpPostBodyUtil.ChunkSize;
+            if (this.currentBuffer != null)
+            {
+                size -= this.currentBuffer.ReadableBytes;
+            }
+            return size;
+        }
+
+        IHttpContent LastChunk()
+        {
             this.isLastChunk = true;
             if (this.currentBuffer == null)
             {
@@ -983,19 +980,18 @@ namespace DotNetty.Codecs.Http.Multipart
                 // LastChunk with no more data
                 return EmptyLastHttpContent.Default;
             }
-            // Previous LastChunk with no more data
-            buffer = this.currentBuffer;
+            // NextChunk as last non empty from buffer
+            IByteBuffer buffer = this.currentBuffer;
             this.currentBuffer = null;
-
             return new DefaultHttpContent(buffer);
         }
 
         public bool IsEndOfInput => this.isLastChunkSent;
 
-        public long Length => this.IsMultipart? this.globalBodySize : this.globalBodySize - 1;
-
         // Global Transfer progress
         public long Progress { get; private set; }
+
+        public long Length => this.IsMultipart? this.globalBodySize : this.globalBodySize - 1;
 
         class WrappedHttpRequest : IHttpRequest
         {
@@ -1006,19 +1002,11 @@ namespace DotNetty.Codecs.Http.Multipart
                 this.request = request;
             }
 
-            public DecoderResult Result
-            {
-                get => this.request.Result;
-                set => this.request.Result = value;
-            }
-
             public HttpVersion ProtocolVersion
             {
                 get => this.request.ProtocolVersion;
                 set => this.request.ProtocolVersion = value;
             }
-
-            public HttpHeaders Headers => this.request.Headers;
 
             public HttpMethod Method
             {
@@ -1030,6 +1018,14 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 get => this.request.Uri;
                 set => this.request.Uri = value;
+            }
+
+            public HttpHeaders Headers => this.request.Headers;
+
+            public DecoderResult Result
+            {
+                get => this.request.Result;
+                set => this.request.Result = value;
             }
         }
 
@@ -1043,17 +1039,29 @@ namespace DotNetty.Codecs.Http.Multipart
                 this.content = content;
             }
 
-            public int ReferenceCount => this.content.ReferenceCount;
+            public IByteBufferHolder Copy() => this.Replace(this.Content.Copy());
 
-            public IReferenceCounted Retain()
+            public IByteBufferHolder Duplicate() => this.Replace(this.Content.Duplicate());
+
+            public IByteBufferHolder RetainedDuplicate() => this.Replace(this.Content.RetainedDuplicate());
+
+            public IByteBufferHolder Replace(IByteBuffer newContent)
             {
-                this.content.Retain();
-                return this;
+                var duplicate = new DefaultFullHttpRequest(this.ProtocolVersion, this.Method, this.Uri, newContent);
+                duplicate.Headers.Set(this.Headers);
+                duplicate.TrailingHeaders.Set(this.TrailingHeaders);
+                return duplicate;
             }
 
             public IReferenceCounted Retain(int increment)
             {
                 this.content.Retain(increment);
+                return this;
+            }
+
+            public IReferenceCounted Retain()
+            {
+                this.content.Retain();
                 return this;
             }
 
@@ -1069,28 +1077,26 @@ namespace DotNetty.Codecs.Http.Multipart
                 return this;
             }
 
+            public IByteBuffer Content => this.content.Content;
+
+            public HttpHeaders TrailingHeaders
+            {
+                get
+                {
+                    if (this.content is ILastHttpContent httpContent)
+                    {
+                        return httpContent.TrailingHeaders;
+                    }
+
+                    return EmptyHttpHeaders.Default;
+                }
+            } 
+
+            public int ReferenceCount => this.content.ReferenceCount;
+
             public bool Release() => this.content.Release();
 
             public bool Release(int decrement) => this.content.Release(decrement);
-
-            public IByteBuffer Content => this.content.Content;
-
-            public IByteBufferHolder Copy() => this.Replace(this.Content.Copy());
-
-            public IByteBufferHolder Duplicate() => this.Replace(this.Content.Duplicate());
-
-            public IByteBufferHolder RetainedDuplicate() => this.Replace(this.Content.RetainedDuplicate());
-
-            public HttpHeaders TrailingHeaders => this.content is ILastHttpContent httpContent 
-                ? httpContent.TrailingHeaders : EmptyHttpHeaders.Default;
-
-            public IByteBufferHolder Replace(IByteBuffer newContent)
-            {
-                var duplicate = new DefaultFullHttpRequest(this.ProtocolVersion, this.Method, this.Uri, newContent);
-                duplicate.Headers.Set(this.Headers);
-                duplicate.TrailingHeaders.Set(this.TrailingHeaders);
-                return duplicate;
-            }
         }
     }
 }

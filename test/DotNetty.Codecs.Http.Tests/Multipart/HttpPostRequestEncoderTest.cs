@@ -30,8 +30,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             ShouldThrowExceptionIfNotAllowed(HttpMethod.Get, fileStream);
             ShouldThrowExceptionIfNotAllowed(HttpMethod.Head, fileStream);
             ShouldThrowExceptionIfNotAllowed(HttpMethod.Options, fileStream);
-            Assert.Throws<ErrorDataEncoderException>(
-                () => ShouldThrowExceptionIfNotAllowed(HttpMethod.Trace, fileStream));
+            Assert.Throws<ErrorDataEncoderException>(() => ShouldThrowExceptionIfNotAllowed(HttpMethod.Trace, fileStream));
         }
 
         static void ShouldThrowExceptionIfNotAllowed(HttpMethod method, FileStream fileStream)
@@ -81,21 +80,21 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             string content = GetRequestBody(encoder);
 
             string expected = "--" + multipartDataBoundary + "\r\n" +
-                    HttpHeaderNames.ContentDisposition + ": form-data; name=\"foo\"" + "\r\n" +
-                    HttpHeaderNames.ContentLength + ": 3" + "\r\n" +
-                    HttpHeaderNames.ContentType + ": text/plain; charset=utf-8" + "\r\n" +
-                    "\r\n" +
-                    "bar" +
-                    "\r\n" +
-                    "--" + multipartDataBoundary + "\r\n" +
-                    HttpHeaderNames.ContentDisposition + ": form-data; name=\"quux\"\r\n" +
-                    HttpHeaderNames.ContentLength + ": " + fileStream.Length + "\r\n" +
-                    HttpHeaderNames.ContentType + ": text/plain" + "\r\n" +
-                    HttpHeaderNames.ContentTransferEncoding + ": binary" + "\r\n" +
-                    "\r\n" +
-                    "File 01" + StringUtil.Newline +
-                    "\r\n" +
-                    "--" + multipartDataBoundary + "--" + "\r\n";
+                HttpHeaderNames.ContentDisposition + ": form-data; name=\"foo\"" + "\r\n" +
+                HttpHeaderNames.ContentLength + ": 3" + "\r\n" +
+                HttpHeaderNames.ContentType + ": text/plain; charset=utf-8" + "\r\n" +
+                "\r\n" +
+                "bar" +
+                "\r\n" +
+                "--" + multipartDataBoundary + "\r\n" +
+                HttpHeaderNames.ContentDisposition + ": form-data; name=\"quux\"\r\n" +
+                HttpHeaderNames.ContentLength + ": " + fileStream.Length + "\r\n" +
+                HttpHeaderNames.ContentType + ": text/plain" + "\r\n" +
+                HttpHeaderNames.ContentTransferEncoding + ": binary" + "\r\n" +
+                "\r\n" +
+                "File 01" + StringUtil.Newline +
+                "\r\n" +
+                "--" + multipartDataBoundary + "--" + "\r\n";
 
             Assert.Equal(expected, content);
         }
@@ -122,33 +121,33 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             string content = GetRequestBody(encoder);
 
             string expected = "--" + multipartDataBoundary + "\r\n" +
-                    HttpHeaderNames.ContentDisposition + ": form-data; name=\"foo\"" + "\r\n" +
-                    HttpHeaderNames.ContentLength + ": 3" + "\r\n" +
-                    HttpHeaderNames.ContentType + ": text/plain; charset=utf-8" + "\r\n" +
-                    "\r\n" +
-                    "bar" + "\r\n" +
-                    "--" + multipartDataBoundary + "\r\n" +
-                    HttpHeaderNames.ContentDisposition + ": form-data; name=\"quux\"" + "\r\n" +
-                    HttpHeaderNames.ContentType + ": multipart/mixed; boundary=" + multipartMixedBoundary + "\r\n" +
-                    "\r\n" +
-                    "--" + multipartMixedBoundary + "\r\n" +
-                    HttpHeaderNames.ContentDisposition + ": attachment; filename=\"file-02.txt\"" + "\r\n" +
-                    HttpHeaderNames.ContentLength + ": " + fileStream1.Length + "\r\n" +
-                    HttpHeaderNames.ContentType + ": text/plain" + "\r\n" +
-                    HttpHeaderNames.ContentTransferEncoding + ": binary" + "\r\n" +
-                    "\r\n" +
-                    "File 01" + StringUtil.Newline +
-                    "\r\n" +
-                    "--" + multipartMixedBoundary + "\r\n" +
-                    HttpHeaderNames.ContentDisposition + ": attachment; filename=\"file-02.txt\"" + "\r\n" +
-                    HttpHeaderNames.ContentLength + ": " + fileStream2.Length + "\r\n" +
-                    HttpHeaderNames.ContentType + ": text/plain" + "\r\n" +
-                    HttpHeaderNames.ContentTransferEncoding + ": binary" + "\r\n" +
-                    "\r\n" +
-                    "File 02" + StringUtil.Newline +
-                    "\r\n" +
-                    "--" + multipartMixedBoundary + "--" + "\r\n" +
-                    "--" + multipartDataBoundary + "--" + "\r\n";
+                HttpHeaderNames.ContentDisposition + ": form-data; name=\"foo\"" + "\r\n" +
+                HttpHeaderNames.ContentLength + ": 3" + "\r\n" +
+                HttpHeaderNames.ContentType + ": text/plain; charset=utf-8" + "\r\n" +
+                "\r\n" +
+                "bar" + "\r\n" +
+                "--" + multipartDataBoundary + "\r\n" +
+                HttpHeaderNames.ContentDisposition + ": form-data; name=\"quux\"" + "\r\n" +
+                HttpHeaderNames.ContentType + ": multipart/mixed; boundary=" + multipartMixedBoundary + "\r\n" +
+                "\r\n" +
+                "--" + multipartMixedBoundary + "\r\n" +
+                HttpHeaderNames.ContentDisposition + ": attachment; filename=\"file-02.txt\"" + "\r\n" +
+                HttpHeaderNames.ContentLength + ": " + fileStream1.Length + "\r\n" +
+                HttpHeaderNames.ContentType + ": text/plain" + "\r\n" +
+                HttpHeaderNames.ContentTransferEncoding + ": binary" + "\r\n" +
+                "\r\n" +
+                "File 01" + StringUtil.Newline +
+                "\r\n" +
+                "--" + multipartMixedBoundary + "\r\n" +
+                HttpHeaderNames.ContentDisposition + ": attachment; filename=\"file-02.txt\"" + "\r\n" +
+                HttpHeaderNames.ContentLength + ": " + fileStream2.Length + "\r\n" +
+                HttpHeaderNames.ContentType + ": text/plain" + "\r\n" +
+                HttpHeaderNames.ContentTransferEncoding + ": binary" + "\r\n" +
+                "\r\n" +
+                "File 02" + StringUtil.Newline +
+                "\r\n" +
+                "--" + multipartMixedBoundary + "--" + "\r\n" +
+                "--" + multipartDataBoundary + "--" + "\r\n";
 
             Assert.Equal(expected, content);
         }
@@ -211,7 +210,11 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
         {
             var request = new DefaultFullHttpRequest(HttpVersion.Http11, HttpMethod.Post, "http://localhost");
             var factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MinSize);
-            var encoder = new HttpPostRequestEncoder(factory, request, true, Encoding.UTF8,
+            var encoder = new HttpPostRequestEncoder(
+                factory,
+                request,
+                true,
+                Encoding.UTF8,
                 HttpPostRequestEncoder.EncoderMode.HTML5);
 
             FileStream fileStream1 = File.Open("./Multipart/file-01.txt", FileMode.Open, FileAccess.Read);
@@ -258,7 +261,11 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             var request = new DefaultFullHttpRequest(HttpVersion.Http11, HttpMethod.Post, "http://localhost");
             var factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MinSize);
 
-            var encoder = new HttpPostRequestEncoder(factory, request, true, Encoding.UTF8,
+            var encoder = new HttpPostRequestEncoder(
+                factory,
+                request,
+                true,
+                Encoding.UTF8,
                 HttpPostRequestEncoder.EncoderMode.HTML5);
             FileStream fileStream1 = File.Open("./Multipart/file-01.txt", FileMode.Open, FileAccess.Read);
             this.files.Add(fileStream1);
@@ -317,8 +324,9 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
                 IHttpContent httpContent = encoder.ReadChunk(null);
                 IByteBuffer content = httpContent.Content;
                 int refCnt = content.ReferenceCount;
-                Assert.True((ReferenceEquals(content.Unwrap(), content) || content.Unwrap() == null) && refCnt == 1 
-                    || !ReferenceEquals(content.Unwrap(), content) && refCnt == 2, 
+                Assert.True(
+                    (ReferenceEquals(content.Unwrap(), content) || content.Unwrap() == null) && refCnt == 1
+                    || !ReferenceEquals(content.Unwrap(), content) && refCnt == 2,
                     "content: " + content + " content.unwrap(): " + content.Unwrap() + " refCnt: " + refCnt);
                 httpContent.Release();
             }
@@ -337,8 +345,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             while (node != null)
             {
                 IPostHttpData data = node.Value;
-                var attribute = data as InternalAttribute;
-                if (attribute != null)
+                if (data is InternalAttribute attribute)
                 {
                     buffers.Add(attribute.ToByteBuffer());
                 }
@@ -355,6 +362,79 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             content.Release();
 
             return result;
+        }
+
+        [Fact]
+        public void DataIsMultipleOfChunkSize1()
+        {
+            var factory = new DefaultHttpDataFactory(DefaultHttpDataFactory.MinSize);
+            var request = new DefaultFullHttpRequest(HttpVersion.Http11, HttpMethod.Post, "http://localhost");
+            var encoder = new HttpPostRequestEncoder(
+                factory,
+                request,
+                true,
+                HttpConstants.DefaultEncoding,
+                HttpPostRequestEncoder.EncoderMode.RFC1738);
+
+            var first = new MemoryFileUpload("resources", "", "application/json", null, Encoding.UTF8, -1);
+            first.MaxSize = -1;
+            first.SetContent(new MemoryStream(new byte[7955]));
+            encoder.AddBodyHttpData(first);
+
+            var second = new MemoryFileUpload("resources2", "", "application/json", null, Encoding.UTF8, -1);
+            second.MaxSize = -1;
+            second.SetContent(new MemoryStream(new byte[7928]));
+            encoder.AddBodyHttpData(second);
+
+            Assert.NotNull(encoder.FinalizeRequest());
+
+            CheckNextChunkSize(encoder, 8080);
+            CheckNextChunkSize(encoder, 8080);
+
+            IHttpContent httpContent = encoder.ReadChunk(default(IByteBufferAllocator));
+            Assert.True(httpContent is ILastHttpContent, "Expected LastHttpContent is not received");
+            httpContent.Release();
+
+            Assert.True(encoder.IsEndOfInput, "Expected end of input is not receive");
+        }
+
+        [Fact]
+        public void DataIsMultipleOfChunkSize2()
+        {
+            var request = new DefaultFullHttpRequest(HttpVersion.Http11, HttpMethod.Post, "http://localhost");
+            var encoder = new HttpPostRequestEncoder(request, true);
+            const int Length = 7943;
+            var array = new char[Length];
+            array.Fill('a');
+            string longText = new string(array);
+            encoder.AddBodyAttribute("foo", longText);
+
+            Assert.NotNull(encoder.FinalizeRequest());
+
+            CheckNextChunkSize(encoder, 8080);
+
+            IHttpContent httpContent = encoder.ReadChunk(default(IByteBufferAllocator));
+            Assert.True(httpContent is ILastHttpContent, "Expected LastHttpContent is not received");
+            httpContent.Release();
+
+            Assert.True(encoder.IsEndOfInput, "Expected end of input is not receive");
+        }
+
+        static void CheckNextChunkSize(HttpPostRequestEncoder encoder, int sizeWithoutDelimiter)
+        {
+            // 16 bytes as HttpPostRequestEncoder uses Long.toHexString(...) to generate a hex-string which will be between
+            // 2 and 16 bytes.
+            // See https://github.com/netty/netty/blob/4.1/codec-http/src/main/java/io/netty/handler/
+            // codec/http/multipart/HttpPostRequestEncoder.java#L291
+            int expectedSizeMin = sizeWithoutDelimiter + 2;
+            int expectedSizeMax = sizeWithoutDelimiter + 16;
+
+            IHttpContent httpContent = encoder.ReadChunk(default(IByteBufferAllocator));
+
+            int readable = httpContent.Content.ReadableBytes;
+            bool expectedSize = readable >= expectedSizeMin && readable <= expectedSizeMax;
+            Assert.True(expectedSize, $"Chunk size is not in expected range ({expectedSizeMin} - {expectedSizeMax}), was: {readable}");
+            httpContent.Release();
         }
 
         public void Dispose()
