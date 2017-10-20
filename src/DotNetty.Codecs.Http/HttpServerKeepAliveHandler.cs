@@ -19,25 +19,22 @@ namespace DotNetty.Codecs.Http
 
         public override void ChannelRead(IChannelHandlerContext context, object message)
         {
-            var request = message as IHttpRequest;
-
             // read message and track if it was keepAlive
-            if (request != null) {
+            if (message is IHttpRequest request)
+            {
                 if (this.persistentConnection)
                 {
                     this.pendingResponses += 1;
                     this.persistentConnection = HttpUtil.IsKeepAlive(request);
                 }
             }
-
             base.ChannelRead(context, message);
         }
 
         public override Task WriteAsync(IChannelHandlerContext context, object message)
         {
-            var response = (IHttpResponse)message;
             // modify message on way out to add headers if needed
-            if (response != null)
+            if (message is IHttpResponse response)
             {
                 this.TrackResponse(response);
                 // Assume the response writer knows if they can persist or not and sets isKeepAlive on the response
@@ -54,15 +51,20 @@ namespace DotNetty.Codecs.Http
                 }
             }
 
-            if (response is ILastHttpContent && !this.ShouldKeepAlive())
+            if (message is ILastHttpContent && !this.ShouldKeepAlive())
             {
-                return base.WriteAsync(context, message)
-                    .ContinueWith(t => context.CloseAsync());
+                return base.WriteAsync(context, message).ContinueWith(CloseOnComplete, context);
             }
             else
             {
                 return base.WriteAsync(context, message);
             }
+        }
+
+        static Task CloseOnComplete(Task task, object state)
+        {
+            var context = (IChannelHandlerContext)state;
+            return context.CloseAsync();
         }
 
         void TrackResponse(IHttpResponse response)
@@ -75,15 +77,20 @@ namespace DotNetty.Codecs.Http
 
         bool ShouldKeepAlive() => this.pendingResponses != 0 || this.persistentConnection;
 
+        /// <summary>
+        /// Keep-alive only works if the client can detect when the message has ended without relying on the connection being
+        /// closed.
+        /// https://tools.ietf.org/html/rfc7230#section-6.3
+        /// https://tools.ietf.org/html/rfc7230#section-3.3.2
+        /// https://tools.ietf.org/html/rfc7230#section-3.3.3
+        /// </summary>
+        /// <param name="response">The HttpResponse to check</param>
+        /// <returns>true if the response has a self defined message length.</returns>
         static bool IsSelfDefinedMessageLength(IHttpResponse response) => 
-            HttpUtil.IsContentLengthSet(response) 
-            || HttpUtil.IsTransferEncodingChunked(response) 
-            || IsMultipart(response) 
-            || IsInformational(response) 
-            || response.Status.Code == HttpResponseStatus.NoContent.Code;
+            HttpUtil.IsContentLengthSet(response) || HttpUtil.IsTransferEncodingChunked(response) || IsMultipart(response) 
+            || IsInformational(response) || response.Status.Code == HttpResponseStatus.NoContent.Code;
 
-        static bool IsInformational(IHttpResponse response) => 
-            response.Status.CodeClass == HttpStatusClass.Informational;
+        static bool IsInformational(IHttpResponse response) => response.Status.CodeClass == HttpStatusClass.Informational;
 
         static bool IsMultipart(IHttpResponse response)
         {

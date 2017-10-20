@@ -13,29 +13,48 @@ namespace DotNetty.Codecs.Http
         /** A queue that is used for correlating a request and a response. */
         readonly Queue<HttpMethod> queue = new Queue<HttpMethod>();
 
-        public HttpServerCodec(int maxInitialLineLength = 4096, int maxHeaderSize = 8192, int maxChunkSize = 8192, bool validateHeaders = true)
+        public HttpServerCodec() : this(4096, 8192, 8192)
         {
-            this.Init(new Decoder(this, maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders), new Encoder(this));
+        }
+
+        public HttpServerCodec(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize)
+        {
+            this.Init(new HttpServerRequestDecoder(this, maxInitialLineLength, maxHeaderSize, maxChunkSize),
+                new HttpServerResponseEncoder(this));
+        }
+
+        public HttpServerCodec(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders)
+        {
+            this.Init(new HttpServerRequestDecoder(this, maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders), 
+                new HttpServerResponseEncoder(this));
         }
 
         public HttpServerCodec(int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders, int initialBufferSize)
         {
-            this.Init(new Decoder(this, maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders, initialBufferSize), new Encoder(this));
+            this.Init(new HttpServerRequestDecoder(this, maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders, initialBufferSize), 
+                new HttpServerResponseEncoder(this));
         }
 
         public void UpgradeFrom(IChannelHandlerContext ctx) => ctx.Channel.Pipeline.Remove(this);
 
-        sealed class Decoder : HttpRequestDecoder
+        sealed class HttpServerRequestDecoder : HttpRequestDecoder
         {
             readonly HttpServerCodec serverCodec;
 
-            public Decoder(HttpServerCodec serverCodec, int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders = true)
-                : base(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders)
+            public HttpServerRequestDecoder(HttpServerCodec serverCodec, int maxInitialLineLength, int maxHeaderSize, int maxChunkSize)
+                : base(maxInitialLineLength, maxHeaderSize, maxChunkSize)
             {
                 this.serverCodec = serverCodec;
             }
 
-            public Decoder(HttpServerCodec serverCodec, int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders, int initialBufferSize)
+            public HttpServerRequestDecoder(HttpServerCodec serverCodec, int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders)
+                :base(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders)
+            {
+                this.serverCodec = serverCodec;
+            }
+
+            public HttpServerRequestDecoder(HttpServerCodec serverCodec, 
+                int maxInitialLineLength, int maxHeaderSize, int maxChunkSize, bool validateHeaders, int initialBufferSize)
                 : base(maxInitialLineLength, maxHeaderSize, maxChunkSize, validateHeaders, initialBufferSize)
             {
                 this.serverCodec = serverCodec;
@@ -48,8 +67,7 @@ namespace DotNetty.Codecs.Http
                 int size = output.Count;
                 for (int i = oldSize; i < size; i++)
                 {
-                    var request = output[i] as IHttpRequest;
-                    if (request != null)
+                    if (output[i] is IHttpRequest request)
                     {
                         this.serverCodec.queue.Enqueue(request.Method);
                     }
@@ -57,17 +75,35 @@ namespace DotNetty.Codecs.Http
             }
         }
 
-        sealed class Encoder : HttpResponseEncoder
+        sealed class HttpServerResponseEncoder : HttpResponseEncoder
         {
             readonly HttpServerCodec serverCodec;
+            HttpMethod method;
 
-            public Encoder(HttpServerCodec serverCodec)
+            public HttpServerResponseEncoder(HttpServerCodec serverCodec)
             {
                 this.serverCodec = serverCodec;
             }
 
-            protected override bool IsContentAlwaysEmpty(IHttpResponse msg) => 
-                this.serverCodec.queue.Count > 0 && HttpMethod.Head.Equals(this.serverCodec.queue.Dequeue());
+            protected override void SanitizeHeadersBeforeEncode(IHttpResponse msg, bool isAlwaysEmpty)
+            {
+                if (!isAlwaysEmpty && HttpMethod.Connect.Equals(this.method) && msg.Status.CodeClass == HttpStatusClass.Success)
+                {
+                    // Stripping Transfer-Encoding:
+                    // See https://tools.ietf.org/html/rfc7230#section-3.3.1
+                    msg.Headers.Remove(HttpHeaderNames.TransferEncoding);
+                    return;
+                }
+
+                base.SanitizeHeadersBeforeEncode(msg, isAlwaysEmpty);
+            }
+
+
+            protected override bool IsContentAlwaysEmpty(IHttpResponse msg)
+            {
+                this.method = this.serverCodec.queue.Count > 0 ? this.serverCodec.queue.Dequeue() : null;
+                return HttpMethod.Head.Equals(this.method) || base.IsContentAlwaysEmpty(msg);
+            }
         }
     }
 }

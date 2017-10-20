@@ -20,7 +20,7 @@ namespace DotNetty.Common.Utilities
         public const char LineFeed = '\n';
         public const char CarriageReturn = '\r';
         public const char Tab = '\t';
-        public const char Space = '\x20';
+        public static readonly char Space = '\x20';
         public const byte UpperCaseToLowerCaseAsciiOffset = 'a' - 'A';
         public static readonly string Newline;
         static readonly string[] Byte2HexPad = new string[256];

@@ -16,42 +16,48 @@ namespace DotNetty.Codecs.Http
         static readonly IFullHttpResponse Accept = new DefaultFullHttpResponse(
             HttpVersion.Http11, HttpResponseStatus.Continue, Unpooled.Empty);
 
-        protected virtual IHttpResponse AcceptMessage(IHttpRequest request) => 
-            (IHttpResponse)Accept.Duplicate().Retain();
+        static HttpServerExpectContinueHandler()
+        {
+            ExpectationFailed.Headers.Set(HttpHeaderNames.ContentLength, 0);
+            Accept.Headers.Set(HttpHeaderNames.ContentLength, 0);
+        }
 
-        protected virtual IHttpResponse RejectResponse(IHttpRequest request) => 
-            (IHttpResponse)ExpectationFailed.Duplicate().Retain();
+        protected virtual IHttpResponse AcceptMessage(IHttpRequest request) =>  (IHttpResponse)Accept.RetainedDuplicate();
+
+        protected virtual IHttpResponse RejectResponse(IHttpRequest request) => (IHttpResponse)ExpectationFailed.RetainedDuplicate();
 
         public override void ChannelRead(IChannelHandlerContext context, object message)
         {
-            var req = message as IHttpRequest;
-            if (req != null)
+            if (message is IHttpRequest req)
             {
                 if (HttpUtil.Is100ContinueExpected(req))
                 {
                     IHttpResponse accept = this.AcceptMessage(req);
+
                     if (accept == null)
                     {
                         // the expectation failed so we refuse the request.
                         IHttpResponse rejection = this.RejectResponse(req);
                         ReferenceCountUtil.Release(message);
-                        context.WriteAndFlushAsync(rejection)
-                            .ContinueWith(t => context.CloseAsync());
+                        context.WriteAndFlushAsync(rejection).ContinueWith(CloseOnFailure, context);
                         return;
                     }
-                    context.WriteAndFlushAsync(accept)
-                        .ContinueWith(t =>
-                        {
-                            if (t.Status != TaskStatus.RanToCompletion)
-                            {
-                                context.CloseAsync();
-                            }
-                        });
+                    context.WriteAndFlushAsync(accept).ContinueWith(CloseOnFailure, context);
                     req.Headers.Remove(HttpHeaderNames.Expect);
                 }
 
                 base.ChannelRead(context, message);
             }
+        }
+
+        static Task CloseOnFailure(Task task, object state)
+        {
+            if (task.IsFaulted)
+            {
+                var context = (IChannelHandlerContext)state;
+                return context.CloseAsync();
+            }
+            return TaskEx.Completed;
         }
     }
 }
