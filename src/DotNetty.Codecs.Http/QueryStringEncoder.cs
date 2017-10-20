@@ -8,15 +8,12 @@ namespace DotNetty.Codecs.Http
     using DotNetty.Common.Utilities;
 
     /// <summary>
-    /// * Creates an URL-encoded URI from a path string and key-value parameter pairs.
-    /// * This encoder is for one time use only.  Create a new instance for each URI.
-    /// *
-    /// * <pre>
-    /// * {@link QueryStringEncoder} encoder = new {@link QueryStringEncoder}("/hello");
-    /// * encoder.addParam("recipient", "world");
-    /// * assert encoder.toString().equals("/hello?recipient=world");
-    /// * </pre>
-    /// * @see QueryStringDecoder
+    /// Creates an URL-encoded URI from a path string and key-value parameter pairs.
+    /// This encoder is for one time use only.  Create a new instance for each URI.
+    /// 
+    /// {@link QueryStringEncoder} encoder = new {@link QueryStringEncoder}("/hello");
+    /// encoder.addParam("recipient", "world");
+    /// assert encoder.toString().equals("/hello?recipient=world");
     /// </summary>
     public class QueryStringEncoder
     {
@@ -26,16 +23,12 @@ namespace DotNetty.Codecs.Http
         readonly StringBuilder uriBuilder;
         bool hasParams;
 
-        public QueryStringEncoder(string uri)
-            : this(uri, HttpConstants.DefaultEncoding)
+        public QueryStringEncoder(string uri) : this(uri, HttpConstants.DefaultEncoding)
         {
         }
 
         public QueryStringEncoder(string uri, Encoding encoding)
         {
-            Contract.Requires(uri != null);
-            Contract.Requires(encoding != null);
-
             this.uriBuilder = new StringBuilder(uri);
             this.encoding = encoding;
         }
@@ -43,7 +36,6 @@ namespace DotNetty.Codecs.Http
         public void AddParam(string name, string value)
         {
             Contract.Requires(name != null);
-
             if (this.hasParams)
             {
                 this.uriBuilder.Append('&');
@@ -70,8 +62,10 @@ namespace DotNetty.Codecs.Http
             var bytes = new byte[count];
             var array = new char[1];
 
-            foreach (char ch in s)
+            // ReSharper disable once ForCanBeConvertedToForeach
+            for (int i = 0; i < s.Length; i++)
             {
+                char ch = s[i];
                 if (ch >= 'a' && ch <= 'z'
                     || ch >= 'A' && ch <= 'Z'
                     || ch >= '0' && ch <= '9')
@@ -80,6 +74,7 @@ namespace DotNetty.Codecs.Http
                 }
                 else
                 {
+                    // replace all '+' with "%20"
                     if (ch == '+')
                     {
                         buf.Append(EncodedSpace);
@@ -88,11 +83,11 @@ namespace DotNetty.Codecs.Http
                     {
                         array[0] = ch;
                         count = encoding.GetBytes(array, 0, 1, bytes, 0);
-                        for (int i = 0; i < count; i++)
+                        for (int j = 0; j < count; j++)
                         {
                             buf.Append('%');
-                            buf.Append(CharUtil.Digits[(bytes[i] & 0xf0) >> 4]);
-                            buf.Append(CharUtil.Digits[bytes[i] & 0xf]);
+                            buf.Append(CharUtil.Digits[(bytes[j] & 0xf0) >> 4]);
+                            buf.Append(CharUtil.Digits[bytes[j] & 0xf]);
                         }
                     }
                 }
