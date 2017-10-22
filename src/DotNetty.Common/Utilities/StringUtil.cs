@@ -15,6 +15,9 @@ namespace DotNetty.Common.Utilities
     /// </summary>
     public static class StringUtil
     {
+        public static readonly string EmptyString = "";
+        public static readonly string Newline = SystemPropertyUtil.Get("line.separator", Environment.NewLine);
+
         public const char DoubleQuote = '\"';
         public const char Comma = ',';
         public const char LineFeed = '\n';
@@ -22,7 +25,6 @@ namespace DotNetty.Common.Utilities
         public const char Tab = '\t';
         public static readonly char Space = '\x20';
         public const byte UpperCaseToLowerCaseAsciiOffset = 'a' - 'A';
-        public static readonly string Newline;
         static readonly string[] Byte2HexPad = new string[256];
         static readonly string[] Byte2HexNopad = new string[256];
         /**
@@ -33,8 +35,6 @@ namespace DotNetty.Common.Utilities
 
         static StringUtil()
         {
-            Newline = Environment.NewLine;
-
             // Generate the lookup table that converts a byte into a 2-digit hexadecimal integer.
             int i;
             for (i = 0; i < 10; i++)

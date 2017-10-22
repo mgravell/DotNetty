@@ -7,7 +7,7 @@ namespace DotNetty.Codecs.Http.Multipart
     using System.Text;
     using DotNetty.Buffers;
 
-    public interface IHttpData : IPostHttpData, IByteBufferHolder
+    public interface IHttpData : IInterfaceHttpData, IByteBufferHolder
     {
         long MaxSize { get; set; }
 
@@ -19,7 +19,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
         void AddContent(IByteBuffer buffer, bool last);
 
-        bool Completed { get; }
+        bool IsCompleted { get; }
 
         long Length { get; }
 
@@ -37,12 +37,12 @@ namespace DotNetty.Codecs.Http.Multipart
 
         string GetString(Encoding encoding);
 
-        Encoding ContentEncoding { get; set; }
+        Encoding Charset { get; set; }
 
         bool RenameTo(FileStream destination);
 
-        bool InMemory { get; }
+        bool IsInMemory { get; }
 
-        FileStream GetFileStream();
+        FileStream GetFile();
     }
 }

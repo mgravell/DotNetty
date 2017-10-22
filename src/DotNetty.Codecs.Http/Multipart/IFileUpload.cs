@@ -9,6 +9,6 @@ namespace DotNetty.Codecs.Http.Multipart
 
         string ContentType { get; set; }
 
-        string TransferEncoding { get; set; }
+        string ContentTransferEncoding { get; set; }
     }
 }

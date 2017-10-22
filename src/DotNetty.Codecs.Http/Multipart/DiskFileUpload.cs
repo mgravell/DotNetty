@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable ConvertToAutoProperty
 namespace DotNetty.Codecs.Http.Multipart
 {
     using System;
@@ -19,16 +20,18 @@ namespace DotNetty.Codecs.Http.Multipart
 
         string filename;
         string contentType;
+        string contentTransferEncoding;
 
-        public DiskFileUpload(string name, string filename, string contentType, string transferEncoding, Encoding contentEncoding, long size)
-            : base(name, contentEncoding, size)
+        public DiskFileUpload(string name, string filename, string contentType, 
+            string contentTransferEncoding, Encoding charset, long size)
+            : base(name, charset, size)
         {
             Contract.Requires(filename != null);
             Contract.Requires(contentType != null);
 
             this.filename = filename;
             this.contentType = contentType;
-            this.TransferEncoding = transferEncoding;
+            this.contentTransferEncoding = contentTransferEncoding;
         }
 
         public override HttpDataType DataType => HttpDataType.FileUpload;
@@ -47,7 +50,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override bool Equals(object obj) => obj is IFileUpload fileUpload && FileUploadUtil.Equals(this, fileUpload);
 
-        public override int CompareTo(IPostHttpData other)
+        public override int CompareTo(IInterfaceHttpData other)
         {
             if (!(other is IFileUpload))
             {
@@ -65,19 +68,22 @@ namespace DotNetty.Codecs.Http.Multipart
             set
             {
                 Contract.Requires(value != null);
-
                 this.contentType = value;
             }
         }
 
-        public string TransferEncoding { get; set; }
+        public string ContentTransferEncoding
+        {
+            get => this.contentTransferEncoding;
+            set => this.contentTransferEncoding = value;
+        }
 
         public override string ToString()
         {
             FileStream fileStream = null;
             try
             {
-                fileStream = this.GetFileStream();
+                fileStream = this.GetFile();
             }
             catch (IOException)
             {
@@ -88,10 +94,10 @@ namespace DotNetty.Codecs.Http.Multipart
                HttpHeaderValues.FormData + "; " + HttpHeaderValues.Name + "=\"" + this.Name +
                 "\"; " + HttpHeaderValues.FileName + "=\"" + this.filename + "\"\r\n" +
                 HttpHeaderNames.ContentType + ": " + this.contentType +
-                (this.ContentEncoding != null ? "; " + HttpHeaderValues.Charset + '=' + this.ContentEncoding.WebName + "\r\n" : "\r\n") +
+                (this.Charset != null ? "; " + HttpHeaderValues.Charset + '=' + this.Charset.WebName + "\r\n" : "\r\n") +
                 HttpHeaderNames.ContentLength + ": " + this.Length + "\r\n" +
-                "Completed: " + this.Completed +
-                "\r\nIsInMemory: " + this.InMemory + "\r\nRealFile: " +
+                "Completed: " + this.IsCompleted +
+                "\r\nIsInMemory: " + this.IsInMemory + "\r\nRealFile: " +
                 (fileStream != null ? fileStream.Name : "null") + " DefaultDeleteAfter: " +
                 DeleteOnExitTemporaryFile;
         }
@@ -102,9 +108,9 @@ namespace DotNetty.Codecs.Http.Multipart
 
         protected override string DiskFilename => "upload";
 
-        protected override string Prefix => FilePrefix;
-
         protected override string Postfix => FilePostfix;
+
+        protected override string Prefix => FilePrefix;
 
         public override IByteBufferHolder Copy() => this.Replace(this.Content?.Copy());
 
@@ -140,7 +146,7 @@ namespace DotNetty.Codecs.Http.Multipart
         public override IByteBufferHolder Replace(IByteBuffer content)
         {
             var upload = new DiskFileUpload(
-                this.Name, this.FileName, this.ContentType, this.TransferEncoding, this.ContentEncoding, this.Size);
+                this.Name, this.FileName, this.ContentType, this.ContentTransferEncoding, this.Charset, this.Size);
             if (content != null)
             {
                 try

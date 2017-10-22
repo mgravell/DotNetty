@@ -62,7 +62,7 @@ namespace DotNetty.Codecs.Http.Multipart
                 {
                     var diskFileUpload = new DiskFileUpload(this.fileUpload.Name, this.fileUpload.FileName, 
                         this.fileUpload.ContentType, 
-                        this.fileUpload.TransferEncoding, this.fileUpload.ContentEncoding, this.definedSize);
+                        this.fileUpload.TransferEncoding, this.fileUpload.Charset, this.definedSize);
                     diskFileUpload.MaxSize = this.maxSize;
                     IByteBuffer data = this.fileUpload.GetByteBuffer();
                     if (data != null && data.IsReadable())
@@ -84,10 +84,10 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public IByteBuffer GetByteBuffer() => this.fileUpload.GetByteBuffer();
 
-        public Encoding ContentEncoding
+        public Encoding Charset
         {
-            get => this.fileUpload.ContentEncoding;
-            set => this.fileUpload.ContentEncoding = value;
+            get => this.fileUpload.Charset;
+            set => this.fileUpload.Charset = value;
         }
 
         public string ContentType
@@ -137,7 +137,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
                     // change to Disk
                     this.fileUpload = new DiskFileUpload(memoryUpload.Name, memoryUpload.FileName, memoryUpload.ContentType,
-                        memoryUpload.TransferEncoding, memoryUpload.ContentEncoding, this.definedSize);
+                        memoryUpload.TransferEncoding, memoryUpload.Charset, this.definedSize);
                     this.fileUpload.MaxSize = this.maxSize;
 
                     // release old upload
@@ -158,7 +158,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
                     // change to Disk
                     this.fileUpload = new DiskFileUpload(memoryUpload.Name, memoryUpload.FileName, memoryUpload.ContentType, 
-                        memoryUpload.TransferEncoding, memoryUpload.ContentEncoding, this.definedSize);
+                        memoryUpload.TransferEncoding, memoryUpload.Charset, this.definedSize);
                     this.fileUpload.MaxSize = this.maxSize;
 
                     // release old upload
@@ -175,7 +175,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override bool Equals(object obj) => this.fileUpload.Equals(obj);
 
-        public int CompareTo(IPostHttpData other) => this.fileUpload.CompareTo(other);
+        public int CompareTo(IInterfaceHttpData other) => this.fileUpload.CompareTo(other);
 
         public override string ToString() => $"Mixed: {this.fileUpload}";
 

@@ -7,12 +7,11 @@ namespace DotNetty.Codecs.Http.Multipart
 
     public class NotEnoughDataDecoderException : DecoderException
     {
-        public NotEnoughDataDecoderException(string message)
-            : base(message)
+        public NotEnoughDataDecoderException(string message) : base(message)
         {
         }
-        public NotEnoughDataDecoderException(Exception innerException)
-            : base(innerException)
+
+        public NotEnoughDataDecoderException(Exception innerException) : base(innerException)
         {
         }
     }

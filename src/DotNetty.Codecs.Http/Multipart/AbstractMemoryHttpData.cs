@@ -15,8 +15,8 @@ namespace DotNetty.Codecs.Http.Multipart
         IByteBuffer byteBuf;
         int chunkPosition;
 
-        protected AbstractMemoryHttpData(string name, Encoding contentEncoding, long size) 
-            : base(name, contentEncoding, size)
+        protected AbstractMemoryHttpData(string name, Encoding charset, long size) 
+            : base(name, charset, size)
         {
         }
 
@@ -34,16 +34,16 @@ namespace DotNetty.Codecs.Http.Multipart
 
             this.byteBuf = buffer;
             this.Size = localsize;
-            this.Completed = true;
+            this.SetCompleted();
         }
 
-        public override void SetContent(Stream stream)
+        public override void SetContent(Stream inputStream)
         {
-            Contract.Requires(stream != null);
+            Contract.Requires(inputStream != null);
 
-            if (!stream.CanRead)
+            if (!inputStream.CanRead)
             {
-                throw new ArgumentException($"{nameof(stream)} is not readable");
+                throw new ArgumentException($"{nameof(inputStream)} is not readable");
             }
 
             IByteBuffer buffer = Unpooled.Buffer();
@@ -51,7 +51,7 @@ namespace DotNetty.Codecs.Http.Multipart
             int written = 0;
             while (true)
             {
-                int read = stream.Read(bytes, 0, bytes.Length);
+                int read = inputStream.Read(bytes, 0, bytes.Length);
                 if (read <= 0)
                 {
                     break;
@@ -61,7 +61,6 @@ namespace DotNetty.Codecs.Http.Multipart
                 written += read;
                 this.CheckSize(written);
             }
-
             this.Size = written;
             if (this.DefinedSize > 0 && this.DefinedSize < this.Size)
             {
@@ -70,7 +69,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
             this.byteBuf?.Release();
             this.byteBuf = buffer;
-            this.Completed = true;
+            this.SetCompleted();
         }
 
         public override void AddContent(IByteBuffer buffer, bool last)
@@ -89,24 +88,22 @@ namespace DotNetty.Codecs.Http.Multipart
                 {
                     this.byteBuf = buffer;
                 }
-                else if (this.byteBuf is CompositeByteBuffer)
+                else if (this.byteBuf is CompositeByteBuffer buf)
                 {
-                    var buf = (CompositeByteBuffer)this.byteBuf;
-                    buf.AddComponent(buffer);
+                    buf.AddComponent(true, buffer);
                     buf.SetWriterIndex((int)this.Size);
                 }
                 else
                 {
-                    CompositeByteBuffer buf = Unpooled.CompositeBuffer(int.MaxValue);
-                    buf.AddComponents(this.byteBuf, buffer);
-                    buf.SetWriterIndex((int)this.Size);
-                    this.byteBuf = buf;
+                    CompositeByteBuffer compositeBuffer = Unpooled.CompositeBuffer(int.MaxValue);
+                    compositeBuffer.AddComponents(true, this.byteBuf, buffer);
+                    compositeBuffer.SetWriterIndex((int)this.Size);
+                    this.byteBuf = compositeBuffer;
                 }
             }
-
             if (last)
             {
-                this.Completed = true;
+                this.SetCompleted();
             }
             else
             {
@@ -135,9 +132,10 @@ namespace DotNetty.Codecs.Http.Multipart
 
             var array = new byte[this.byteBuf.ReadableBytes];
             this.byteBuf.GetBytes(this.byteBuf.ReaderIndex, array);
-
             return array;
         }
+
+        public override string GetString() => this.GetString(HttpConstants.DefaultEncoding);
 
         public override string GetString(Encoding encoding)
         {
@@ -149,7 +147,6 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 encoding = HttpConstants.DefaultEncoding;
             }
-
             return this.byteBuf.ToString(encoding);
         }
 
@@ -174,14 +171,12 @@ namespace DotNetty.Codecs.Http.Multipart
                 sliceLength = sizeLeft;
             }
 
-            IByteBuffer chunk = this.byteBuf.Slice(this.chunkPosition, sliceLength);
-            chunk.Retain();
+            IByteBuffer chunk = this.byteBuf.RetainedSlice(this.chunkPosition, sliceLength);
             this.chunkPosition += sliceLength;
-
             return chunk;
         }
 
-        public override bool InMemory => true;
+        public override bool IsInMemory => true;
 
         public override bool RenameTo(FileStream destination)
         {
@@ -198,14 +193,10 @@ namespace DotNetty.Codecs.Http.Multipart
 
             this.byteBuf.GetBytes(this.byteBuf.ReaderIndex, destination, this.byteBuf.ReadableBytes);
             destination.Flush();
-
             return true;
         }
 
-        public override FileStream GetFileStream()
-        {
-            throw new IOException("Not represented by a stream");
-        }
+        public override FileStream GetFile() => throw new IOException("Not represented by a stream");
 
         public override IReferenceCounted Touch(object hint)
         {

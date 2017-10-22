@@ -1,11 +1,13 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable ConvertToAutoPropertyWhenPossible
+// ReSharper disable ConvertToAutoProperty
+// ReSharper disable ConvertToAutoPropertyWithPrivateSetter
 namespace DotNetty.Codecs.Http.Multipart
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.Diagnostics.Contracts;
     using System.IO;
     using System.Text;
@@ -36,10 +38,58 @@ namespace DotNetty.Codecs.Http.Multipart
 
         readonly IHttpDataFactory factory;
         readonly IHttpRequest request;
-        readonly Encoding encoding;
-        readonly List<IHttpData> bodyList;
+        readonly Encoding charset;
+        bool isChunked;
+        readonly List<IInterfaceHttpData> bodyListDatas;
+        readonly List<IInterfaceHttpData> multipartHttpDatas;
+        readonly bool isMultipart;
+        internal string MultipartDataBoundary;
+        internal string MultipartMixedBoundary;
         bool headerFinalized;
         readonly EncoderMode encoderMode;
+
+        public HttpPostRequestEncoder(IHttpRequest request, bool multipart)
+            : this(new DefaultHttpDataFactory(DefaultHttpDataFactory.MinSize), request, multipart, 
+                  HttpConstants.DefaultEncoding, EncoderMode.RFC1738)
+        {
+        }
+
+        public HttpPostRequestEncoder(IHttpDataFactory factory, IHttpRequest request, bool multipart)
+            : this(factory, request, multipart, HttpConstants.DefaultEncoding, EncoderMode.RFC1738)
+        {
+        }
+
+        public HttpPostRequestEncoder(
+            IHttpDataFactory factory, IHttpRequest request, bool multipart, Encoding charset, 
+            EncoderMode encoderMode)
+        {
+            Contract.Requires(request != null);
+            Contract.Requires(factory != null);
+            Contract.Requires(charset != null);
+
+            this.request = request;
+            this.charset = charset;
+            this.factory = factory;
+            HttpMethod method = request.Method;
+            if (method.Equals(HttpMethod.Trace))
+            {
+                throw new ErrorDataEncoderException("Cannot create a Encoder if request is a TRACE");
+            }
+            // Fill default values
+            this.bodyListDatas = new List<IInterfaceHttpData>();
+            // default mode
+            this.isLastChunk = false;
+            this.isLastChunkSent = false;
+            this.isMultipart = multipart;
+            this.multipartHttpDatas = new List<IInterfaceHttpData>();
+            this.encoderMode = encoderMode;
+            if (this.isMultipart)
+            {
+                this.InitDataMultipart();
+            }
+        }
+
+        public void CleanFiles() => this.factory.CleanRequestHttpData(this.request);
 
         // Does the last non empty chunk already encoded so that next chunk will be empty (last chunk)
         bool isLastChunk;
@@ -50,64 +100,16 @@ namespace DotNetty.Codecs.Http.Multipart
         // The current FileUpload that is currently in encode process
         IFileUpload currentFileUpload;
 
-        //* While adding a FileUpload, is the multipart currently in Mixed Mode
+        // While adding a FileUpload, is the multipart currently in Mixed Mode
         bool duringMixedMode;
 
         // Global Body size
         long globalBodySize;
 
-        public HttpPostRequestEncoder(IHttpRequest request, bool multipart)
-            : this(new DefaultHttpDataFactory(DefaultHttpDataFactory.MinSize),
-                request, multipart, HttpConstants.DefaultEncoding, EncoderMode.RFC1738)
-        {
-        }
+        // Global Transfer progress
+        long globalProgress;
 
-        public HttpPostRequestEncoder(IHttpDataFactory factory, IHttpRequest request, bool multipart)
-            : this(factory, request, multipart, HttpConstants.DefaultEncoding, EncoderMode.RFC1738)
-        {
-        }
-
-        public HttpPostRequestEncoder(IHttpDataFactory factory, IHttpRequest request, bool multipart,
-            Encoding encoding, EncoderMode encoderMode)
-        {
-            Contract.Requires(factory != null);
-            Contract.Requires(request != null);
-            Contract.Requires(encoding != null);
-
-            HttpMethod method = request.Method;
-            if (method.Equals(HttpMethod.Trace))
-            {
-                throw new ErrorDataEncoderException("Cannot create a Encoder if request is a TRACE");
-            }
-
-            this.factory = factory;
-            this.request = request;
-            this.encoding = encoding;
-
-            // Fill default values
-            this.bodyList = new List<IHttpData>();
-
-            // default mode
-            this.isLastChunk = false;
-            this.isLastChunkSent = false;
-            this.IsMultipart = multipart;
-            this.MultipartList = new LinkedList<IPostHttpData>();
-            this.encoderMode = encoderMode;
-            if (this.IsMultipart)
-            {
-                this.InitDataMultipart();
-            }
-        }
-
-        internal string MultipartDataBoundary { get; private set; }
-
-        internal string MultipartMixedBoundary { get; private set; }
-
-        internal LinkedList<IPostHttpData> MultipartList { get; }
-
-        public void CleanFiles() => this.factory.CleanRequestHttpData(this.request);
-
-        public bool IsMultipart { get; }
+        public bool IsMultipart => this.isMultipart;
 
         void InitDataMultipart() => this.MultipartDataBoundary = GetNewMultipartDelimiter();
 
@@ -116,19 +118,18 @@ namespace DotNetty.Codecs.Http.Multipart
         // construct a generated delimiter
         static string GetNewMultipartDelimiter() => Convert.ToString(PlatformDependent.GetThreadLocalRandom().NextLong(), 16).ToLower();
 
-        public List<IHttpData> GetBodyListAttributes() => this.bodyList;
+        public List<IInterfaceHttpData> GetBodyListAttributes() => this.bodyListDatas;
 
-        public void SetBodyHttpDataList(List<IHttpData> list)
+        public void SetBodyHttpDatas(List<IInterfaceHttpData> list)
         {
             Contract.Requires(list != null);
 
             this.globalBodySize = 0;
-            this.bodyList.Clear();
+            this.bodyListDatas.Clear();
             this.currentFileUpload = null;
             this.duringMixedMode = false;
-            this.MultipartList.Clear();
-
-            foreach (IHttpData data in list)
+            this.multipartHttpDatas.Clear();
+            foreach (IInterfaceHttpData data in list)
             {
                 this.AddBodyHttpData(data);
             }
@@ -137,15 +138,12 @@ namespace DotNetty.Codecs.Http.Multipart
         public void AddBodyAttribute(string name, string value)
         {
             Contract.Requires(name != null);
-            IAttribute data = this.factory.CreateAttribute(this.request, name, value ?? "");
+            IAttribute data = this.factory.CreateAttribute(this.request, name, value ?? StringUtil.EmptyString);
             this.AddBodyHttpData(data);
         }
 
         public void AddBodyFileUpload(string name, FileStream fileStream, string contentType, bool isText)
         {
-            Contract.Requires(name != null);
-            Contract.Requires(fileStream != null);
-
             string fileName = Path.GetFileName(fileStream.Name);
             this.AddBodyFileUpload(name, fileName, fileStream, contentType, isText);
         }
@@ -155,22 +153,25 @@ namespace DotNetty.Codecs.Http.Multipart
             Contract.Requires(name != null);
             Contract.Requires(fileStream != null);
 
+            if (fileName == null)
+            {
+                fileName = StringUtil.EmptyString;
+            }
             string scontentType = contentType;
             string contentTransferEncoding = null;
             if (contentType == null)
             {
-                scontentType = isText
-                    ? HttpPostBodyUtil.DefaultTextContentType
+                scontentType = isText 
+                    ? HttpPostBodyUtil.DefaultTextContentType 
                     : HttpPostBodyUtil.DefaultBinaryContentType;
             }
-
             if (!isText)
             {
                 contentTransferEncoding = TransferEncodingMechanism.Binary.Value;
             }
 
-            IFileUpload fileUpload = this.factory.CreateFileUpload(
-                this.request, name, fileName, scontentType, contentTransferEncoding, null, fileStream.Length);
+            IFileUpload fileUpload = this.factory.CreateFileUpload(this.request, name, fileName, scontentType, 
+                contentTransferEncoding, null, fileStream.Length);
             try
             {
                 fileUpload.SetContent(fileStream);
@@ -183,36 +184,38 @@ namespace DotNetty.Codecs.Http.Multipart
             this.AddBodyHttpData(fileUpload);
         }
 
-        public void AddBodyFileUploads(string name, params Tuple<FileStream, string, bool>[] uploads)
+        public void AddBodyFileUploads(string name, FileStream[] file, string[] contentType, bool[] isText)
         {
-            foreach (Tuple<FileStream, string, bool> upload in uploads)
+            if (file.Length != contentType.Length && file.Length != isText.Length)
             {
-                this.AddBodyFileUpload(name, upload.Item1, upload.Item2, upload.Item3);
+                throw new ArgumentException("Different array length");
+            }
+            for (int i = 0; i < file.Length; i++)
+            {
+                this.AddBodyFileUpload(name, file[i], contentType[i], isText[i]);
             }
         }
 
-        public void AddBodyHttpData(IHttpData data)
+        public void AddBodyHttpData(IInterfaceHttpData data)
         {
             Contract.Requires(data != null);
-
             if (this.headerFinalized)
             {
                 throw new ErrorDataEncoderException("Cannot add value once finalized");
             }
 
-            this.bodyList.Add(data);
-
-            if (!this.IsMultipart)
+            this.bodyListDatas.Add(data);
+            if (!this.isMultipart)
             {
                 if (data is IAttribute attribute)
                 {
                     try
                     {
                         // name=value& with encoded name and attribute
-                        string key = this.EncodeAttribute(attribute.Name, this.encoding);
-                        string value = this.EncodeAttribute(attribute.Value, this.encoding);
+                        string key = this.EncodeAttribute(attribute.Name, this.charset);
+                        string value = this.EncodeAttribute(attribute.Value, this.charset);
                         IAttribute newattribute = this.factory.CreateAttribute(this.request, key, value);
-                        this.MultipartList.AddLast(newattribute);
+                        this.multipartHttpDatas.Add(newattribute);
                         this.globalBodySize += newattribute.Name.Length + 1 + newattribute.Length + 1;
                     }
                     catch (IOException e)
@@ -220,18 +223,16 @@ namespace DotNetty.Codecs.Http.Multipart
                         throw new ErrorDataEncoderException(e);
                     }
                 }
-                else if (data is IFileUpload)
+                else if (data is IFileUpload fileUpload)
                 {
                     // since not Multipart, only name=filename => Attribute
-                    var fileUpload = (IFileUpload)data;
                     // name=filename& with encoded name and filename
-                    string key = this.EncodeAttribute(fileUpload.Name, this.encoding);
-                    string value = this.EncodeAttribute(fileUpload.FileName, this.encoding);
+                    string key = this.EncodeAttribute(fileUpload.Name, this.charset);
+                    string value = this.EncodeAttribute(fileUpload.FileName, this.charset);
                     IAttribute newattribute = this.factory.CreateAttribute(this.request, key, value);
-                    this.MultipartList.AddLast(newattribute);
+                    this.multipartHttpDatas.Add(newattribute);
                     this.globalBodySize += newattribute.Name.Length + 1 + newattribute.Length + 1;
                 }
-
                 return;
             }
 
@@ -266,52 +267,51 @@ namespace DotNetty.Codecs.Http.Multipart
             //  if duringmixedmode: endmixedmultipart + endmultipart
             //  else only endmultipart
             // 
-            if (data is IAttribute attribute1)
+            // ReSharper disable once MergeCastWithTypeCheck
+            if (data is IAttribute)
             {
+                InternalAttribute internalAttribute;
                 if (this.duringMixedMode)
                 {
-                    var internalAttribute = new InternalAttribute(this.encoding);
+                    internalAttribute = new InternalAttribute(this.charset);
                     internalAttribute.AddValue($"\r\n--{this.MultipartMixedBoundary}--");
-                    this.MultipartList.AddLast(internalAttribute);
+                    this.multipartHttpDatas.Add(internalAttribute);
                     this.MultipartMixedBoundary = null;
                     this.currentFileUpload = null;
                     this.duringMixedMode = false;
                 }
-
-                var newAttribute = new InternalAttribute(this.encoding);
-                if (this.MultipartList.Count > 0)
-                {
-                    // previously a data field so CRLF
-                    newAttribute.AddValue("\r\n");
-                }
-                newAttribute.AddValue($"--{this.MultipartDataBoundary}\r\n");
-                // content-disposition: form-data; name="field1"
-                newAttribute.AddValue($"{HttpHeaderNames.ContentDisposition}: {HttpHeaderValues.FormData}; {HttpHeaderValues.Name}=\"{attribute1.Name}\"\r\n");
-                // Add Content-Length: xxx
-                newAttribute.AddValue($"{HttpHeaderNames.ContentLength}: {attribute1.Length}\r\n");
-                Encoding contentEncoding = attribute1.ContentEncoding;
-                if (contentEncoding != null)
-                {
-                    // Content-Type: text/plain; charset=charset
-                    newAttribute.AddValue($"{HttpHeaderNames.ContentType}: {HttpPostBodyUtil.DefaultTextContentType}; {HttpHeaderValues.Charset}={contentEncoding.WebName}\r\n");
-                }
-
-                // CRLF between body header and data
-                newAttribute.AddValue("\r\n");
-                this.MultipartList.AddLast(newAttribute);
-                this.MultipartList.AddLast(data);
-                this.globalBodySize += attribute1.Length + newAttribute.Size;
-            }
-            else if (data is IFileUpload)
-            {
-                var fileUpload = (IFileUpload)data;
-                var internalAttribute = new InternalAttribute(this.encoding);
-                if (this.MultipartList.Count > 0)
+                internalAttribute = new InternalAttribute(this.charset);
+                if (this.multipartHttpDatas.Count > 0)
                 {
                     // previously a data field so CRLF
                     internalAttribute.AddValue("\r\n");
                 }
-
+                internalAttribute.AddValue($"--{this.MultipartDataBoundary}\r\n");
+                // content-disposition: form-data; name="field1"
+                var attribute = (IAttribute)data;
+                internalAttribute.AddValue($"{HttpHeaderNames.ContentDisposition}: {HttpHeaderValues.FormData}; {HttpHeaderValues.Name}=\"{attribute.Name}\"\r\n");
+                // Add Content-Length: xxx
+                internalAttribute.AddValue($"{HttpHeaderNames.ContentLength}: {attribute.Length}\r\n");
+                Encoding localcharset = attribute.Charset;
+                if (localcharset != null)
+                {
+                    // Content-Type: text/plain; charset=charset
+                    internalAttribute.AddValue($"{HttpHeaderNames.ContentType}: {HttpPostBodyUtil.DefaultTextContentType}; {HttpHeaderValues.Charset}={localcharset.WebName}\r\n");
+                }
+                // CRLF between body header and data
+                internalAttribute.AddValue("\r\n");
+                this.multipartHttpDatas.Add(internalAttribute);
+                this.multipartHttpDatas.Add(data);
+                this.globalBodySize += attribute.Length + internalAttribute.Size;
+            }
+            else if (data is IFileUpload fileUpload)
+            {
+                var internalAttribute = new InternalAttribute(this.charset);
+                if (this.multipartHttpDatas.Count > 0)
+                {
+                    // previously a data field so CRLF
+                    internalAttribute.AddValue("\r\n");
+                }
                 bool localMixed;
                 if (this.duringMixedMode)
                 {
@@ -319,6 +319,7 @@ namespace DotNetty.Codecs.Http.Multipart
                         && this.currentFileUpload.Name.Equals(fileUpload.Name))
                     {
                         // continue a mixed mode
+
                         localMixed = true;
                     }
                     else
@@ -329,11 +330,11 @@ namespace DotNetty.Codecs.Http.Multipart
                         // and
                         // Data to multipart list
                         internalAttribute.AddValue($"--{this.MultipartMixedBoundary}--");
-                        this.MultipartList.AddLast(internalAttribute);
+                        this.multipartHttpDatas.Add(internalAttribute);
                         this.MultipartMixedBoundary = null;
                         // start a new one (could be replaced if mixed start again
                         // from here
-                        internalAttribute = new InternalAttribute(this.encoding);
+                        internalAttribute = new InternalAttribute(this.charset);
                         internalAttribute.AddValue("\r\n");
                         localMixed = false;
                         // new currentFileUpload and no more in Mixed mode
@@ -369,14 +370,9 @@ namespace DotNetty.Codecs.Http.Multipart
                         // Content-Type: text/plain
 
                         this.InitMixedMultipart();
-
-                        LinkedListNode<IPostHttpData> pastValue = this.MultipartList.Last?.Previous;
-                        Debug.Assert(pastValue != null);
-
-                        var pastAttribute = (InternalAttribute)pastValue.Value;
+                        var pastAttribute = (InternalAttribute)this.multipartHttpDatas[this.multipartHttpDatas.Count - 2];
                         // remove past size
                         this.globalBodySize -= pastAttribute.Size;
-
                         StringBuilder replacement = new StringBuilder(139
                                 + this.MultipartDataBoundary.Length
                                 + this.MultipartMixedBoundary.Length * 2
@@ -451,6 +447,7 @@ namespace DotNetty.Codecs.Http.Multipart
                     // add mixedmultipart delimiter, mixedmultipart body header and
                     // Data to multipart list
                     internalAttribute.AddValue($"--{this.MultipartMixedBoundary}\r\n");
+
                     if (fileUpload.FileName.Length == 0)
                     {
                         // Content-Disposition: attachment
@@ -465,6 +462,7 @@ namespace DotNetty.Codecs.Http.Multipart
                 else
                 {
                     internalAttribute.AddValue($"--{this.MultipartDataBoundary}\r\n");
+
                     if (fileUpload.FileName.Length == 0)
                     {
                         // Content-Disposition: form-data; name="files";
@@ -477,10 +475,8 @@ namespace DotNetty.Codecs.Http.Multipart
                         internalAttribute.AddValue($"{HttpHeaderNames.ContentDisposition}: {HttpHeaderValues.FormData}; {HttpHeaderValues.Name}=\"{fileUpload.Name}\"; {HttpHeaderValues.FileName}=\"{fileUpload.FileName}\"\r\n");
                     }
                 }
-
                 // Add Content-Length: xxx
                 internalAttribute.AddValue($"{HttpHeaderNames.ContentLength}: {fileUpload.Length}\r\n");
-
                 // Content-Type: image/gif
                 // Content-Type: text/plain; charset=ISO-8859-1
                 // Content-Transfer-Encoding: binary
@@ -491,35 +487,37 @@ namespace DotNetty.Codecs.Http.Multipart
                 {
                     internalAttribute.AddValue($"\r\n{HttpHeaderNames.ContentTransferEncoding}: {TransferEncodingMechanism.Binary.Value}\r\n\r\n");
                 }
-                else if (fileUpload.ContentEncoding != null)
+                else if (fileUpload.Charset != null)
                 {
-                    internalAttribute.AddValue($"; {HttpHeaderValues.Charset}={fileUpload.ContentEncoding.WebName}\r\n\r\n");
+                    internalAttribute.AddValue($"; {HttpHeaderValues.Charset}={fileUpload.Charset.WebName}\r\n\r\n");
                 }
                 else
                 {
                     internalAttribute.AddValue("\r\n\r\n");
                 }
-                this.MultipartList.AddLast(internalAttribute);
-                this.MultipartList.AddLast(data);
+                this.multipartHttpDatas.Add(internalAttribute);
+                this.multipartHttpDatas.Add(data);
                 this.globalBodySize += fileUpload.Length + internalAttribute.Size;
             }
         }
+
+        ListIterator iterator;
 
         public IHttpRequest FinalizeRequest()
         {
             // Finalize the multipartHttpDatas
             if (!this.headerFinalized)
             {
-                if (this.IsMultipart)
+                if (this.isMultipart)
                 {
-                    var attribute = new InternalAttribute(this.encoding);
+                    var attribute = new InternalAttribute(this.charset);
                     if (this.duringMixedMode)
                     {
                         attribute.AddValue($"\r\n--{this.MultipartMixedBoundary}--");
                     }
 
                     attribute.AddValue($"\r\n--{this.MultipartDataBoundary}--\r\n");
-                    this.MultipartList.AddLast(attribute);
+                    this.multipartHttpDatas.Add(attribute);
                     this.MultipartMixedBoundary = null;
                     this.currentFileUpload = null;
                     this.duringMixedMode = false;
@@ -554,7 +552,7 @@ namespace DotNetty.Codecs.Http.Multipart
                     }
                 }
             }
-            if (this.IsMultipart)
+            if (this.isMultipart)
             {
                 string value = $"{HttpHeaderValues.MultipartFormData}; {HttpHeaderValues.Boundary}={this.MultipartDataBoundary}";
                 headers.Add(HttpHeaderNames.ContentType, value);
@@ -564,18 +562,22 @@ namespace DotNetty.Codecs.Http.Multipart
                 // Not multipart
                 headers.Add(HttpHeaderNames.ContentType, HttpHeaderValues.ApplicationXWwwFormUrlencoded);
             }
-
             // Now consider size for chunk or not
             long realSize = this.globalBodySize;
-            if (!this.IsMultipart)
+            if (this.isMultipart)
+            {
+                this.iterator = new ListIterator(this.multipartHttpDatas);
+            }
+            else 
             { 
                 realSize -= 1; // last '&' removed
+                this.iterator = new ListIterator(this.multipartHttpDatas);
             }
 
             headers.Set(HttpHeaderNames.ContentLength, Convert.ToString(realSize));
             if (realSize > HttpPostBodyUtil.ChunkSize || this.IsMultipart)
             {
-                this.IsChunked = true;
+                this.isChunked = true;
                 if (transferEncoding != null)
                 {
                     headers.Remove(HttpHeaderNames.TransferEncoding);
@@ -607,18 +609,19 @@ namespace DotNetty.Codecs.Http.Multipart
                     {
                         fullRequest.Content.Clear();
                         fullRequest.Content.WriteBytes(chunkContent);
-
                         chunkContent.Release();
                     }
 
                     return fullRequest;
                 }
-
-                return new WrappedFullHttpRequest(this.request, chunk);
+                else
+                {
+                    return new WrappedFullHttpRequest(this.request, chunk);
+                }
             }
         }
 
-        public bool IsChunked { get; private set; }
+        public bool IsChunked => this.isChunked;
 
         string EncodeAttribute(string value, Encoding stringEncoding)
         {
@@ -683,7 +686,7 @@ namespace DotNetty.Codecs.Http.Multipart
         IByteBuffer currentBuffer;
 
         // The current InterfaceHttpData to encode (used if more chunks are available)
-        IPostHttpData currentData;
+        IInterfaceHttpData currentData;
 
         // If not multipart, does the currentBuffer stands for the Key or for the Value
         bool isKey = true;
@@ -693,19 +696,13 @@ namespace DotNetty.Codecs.Http.Multipart
             int length = this.currentBuffer.ReadableBytes;
             if (length > HttpPostBodyUtil.ChunkSize)
             {
-                var buffer = (IByteBuffer)this.currentBuffer
-                    .Slice(this.currentBuffer.ReaderIndex, HttpPostBodyUtil.ChunkSize)
-                    .Retain();
-                this.currentBuffer.SetReaderIndex(this.currentBuffer.ReaderIndex + HttpPostBodyUtil.ChunkSize);
-                
-                return (IByteBuffer)buffer.Retain();
+                return this.currentBuffer.ReadRetainedSlice(HttpPostBodyUtil.ChunkSize);
             }
             else
             {
                 // to continue
                 IByteBuffer slice = this.currentBuffer;
                 this.currentBuffer = null;
-
                 return slice;
             }
         }
@@ -719,7 +716,6 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 return null;
             }
-
             IByteBuffer buffer;
             if (this.currentData is InternalAttribute internalAttribute)
             {
@@ -728,33 +724,13 @@ namespace DotNetty.Codecs.Http.Multipart
             }
             else
             {
-                if (this.currentData is IAttribute attribute)
+                try
                 {
-                    try
-                    {
-                        buffer = attribute.GetChunk(sizeleft);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new ErrorDataEncoderException(e);
-                    }
+                    buffer = ((IHttpData)this.currentData).GetChunk(sizeleft);
                 }
-                else
+                catch (IOException e)
                 {
-                    try
-                    {
-                        buffer = ((IHttpData)this.currentData).GetChunk(sizeleft);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new ErrorDataEncoderException(e);
-                    }
-                }
-                if (buffer.Capacity == 0)
-                {
-                    // end for current InterfaceHttpData, need more data
-                    this.currentData = null;
-                    return null;
+                    throw new ErrorDataEncoderException(e);
                 }
             }
 
@@ -780,7 +756,6 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 return null;
             }
-
             int size = sizeleft;
             IByteBuffer buffer;
 
@@ -792,15 +767,15 @@ namespace DotNetty.Codecs.Http.Multipart
                 this.isKey = false;
                 if (this.currentBuffer == null)
                 {
-                    this.currentBuffer = Unpooled.WrappedBuffer(
-                        buffer,  Unpooled.WrappedBuffer(Encoding.UTF8.GetBytes("=")));
+                    this.currentBuffer = Unpooled.WrappedBuffer(buffer,  
+                        Unpooled.WrappedBuffer(Encoding.UTF8.GetBytes("=")));
                     // continue
                     size -= buffer.ReadableBytes + 1;
                 }
                 else
                 {
-                    this.currentBuffer = Unpooled.WrappedBuffer(this.currentBuffer, 
-                        buffer, Unpooled.WrappedBuffer(Encoding.UTF8.GetBytes("=")));
+                    this.currentBuffer = Unpooled.WrappedBuffer(this.currentBuffer, buffer, 
+                        Unpooled.WrappedBuffer(Encoding.UTF8.GetBytes("=")));
                     // continue
                     size -= buffer.ReadableBytes + 1;
                 }
@@ -826,7 +801,7 @@ namespace DotNetty.Codecs.Http.Multipart
             if (buffer.ReadableBytes < size)
             {
                 this.isKey = true;
-                delimiter = this.MultipartList.First != null 
+                delimiter = this.iterator.HasNext()
                     ? Unpooled.WrappedBuffer(Encoding.UTF8.GetBytes("&")) 
                     : null;
             }
@@ -896,7 +871,7 @@ namespace DotNetty.Codecs.Http.Multipart
             }
 
             IHttpContent nextChunk = this.NextChunk();
-            this.Progress += nextChunk.Content.ReadableBytes;
+            this.globalProgress += nextChunk.Content.ReadableBytes;
             return nextChunk;
         }
 
@@ -920,7 +895,7 @@ namespace DotNetty.Codecs.Http.Multipart
             if (this.currentData != null)
             {
                 // continue to read data
-                IHttpContent chunk = this.IsMultipart 
+                IHttpContent chunk = this.isMultipart 
                     ? this.EncodeNextChunkMultipart(size) 
                     : this.EncodeNextChunkUrlEncoded(size);
                 if (chunk != null)
@@ -930,17 +905,15 @@ namespace DotNetty.Codecs.Http.Multipart
                 }
                 size = this.CalculateRemainingSize();
             }
-            if (this.MultipartList.Count < 2)
+            if (!this.iterator.HasNext())
             {
                 return this.LastChunk();
             }
-            while (size > 0 && this.MultipartList.First != null)
+            while (size > 0 && this.iterator.HasNext())
             {
-                //iterator.next();
-                this.currentData = this.MultipartList.First.Value;
-                this.MultipartList.RemoveFirst();
+                this.currentData = this.iterator.Next();
                 IHttpContent chunk;
-                if (this.IsMultipart)
+                if (this.isMultipart)
                 {
                     chunk = this.EncodeNextChunkMultipart(size);
                 }
@@ -988,10 +961,10 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public bool IsEndOfInput => this.isLastChunkSent;
 
-        // Global Transfer progress
-        public long Progress { get; private set; }
-
         public long Length => this.IsMultipart? this.globalBodySize : this.globalBodySize - 1;
+
+        // Global Transfer progress
+        public long Progress => this.globalProgress;
 
         class WrappedHttpRequest : IHttpRequest
         {
@@ -1097,6 +1070,31 @@ namespace DotNetty.Codecs.Http.Multipart
             public bool Release() => this.content.Release();
 
             public bool Release(int decrement) => this.content.Release(decrement);
+        }
+
+        sealed class ListIterator
+        {
+            readonly List<IInterfaceHttpData> list;
+            int index;
+
+            public ListIterator(List<IInterfaceHttpData> list)
+            {
+                this.list = list;
+                this.index = 0;
+            }
+
+            public bool HasNext() => this.index < this.list.Count;
+
+            public IInterfaceHttpData Next()
+            {
+                if (!this.HasNext())
+                {
+                    throw new InvalidOperationException("No more element to iterate");
+                }
+
+                IInterfaceHttpData data = this.list[this.index++];
+                return data;
+            }
         }
     }
 }

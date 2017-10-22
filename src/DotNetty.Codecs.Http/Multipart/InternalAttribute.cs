@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable ConvertToAutoPropertyWhenPossible
+// ReSharper disable ConvertToAutoProperty
 namespace DotNetty.Codecs.Http.Multipart
 {
     using System;
@@ -11,15 +13,15 @@ namespace DotNetty.Codecs.Http.Multipart
     using DotNetty.Common;
     using DotNetty.Common.Utilities;
 
-    public class InternalAttribute : AbstractReferenceCounted, IPostHttpData
+    sealed class InternalAttribute : AbstractReferenceCounted, IInterfaceHttpData
     {
         readonly List<IByteBuffer> value = new List<IByteBuffer>();
-        readonly Encoding contentEncoding;
+        readonly Encoding charset;
         int size;
 
-        internal InternalAttribute(Encoding contentEncoding)
+        internal InternalAttribute(Encoding charset)
         {
-            this.contentEncoding = contentEncoding;
+            this.charset = charset;
         }
 
         public HttpDataType DataType => HttpDataType.InternalAttribute;
@@ -28,7 +30,7 @@ namespace DotNetty.Codecs.Http.Multipart
         {
             Contract.Requires(stringValue != null);
 
-            IByteBuffer buf = Unpooled.CopiedBuffer(this.contentEncoding.GetBytes(stringValue));
+            IByteBuffer buf = Unpooled.CopiedBuffer(this.charset.GetBytes(stringValue));
             this.value.Add(buf);
             this.size += buf.ReadableBytes;
         }
@@ -36,12 +38,8 @@ namespace DotNetty.Codecs.Http.Multipart
         public void AddValue(string stringValue, int rank)
         {
             Contract.Requires(stringValue != null);
-            if (rank < 0 || rank >= this.value.Count)
-            {
-                throw new ArgumentOutOfRangeException($"Index: {rank}, Size: {this.value.Count}");
-            }
 
-            IByteBuffer buf = Unpooled.CopiedBuffer(this.contentEncoding.GetBytes(stringValue));
+            IByteBuffer buf = Unpooled.CopiedBuffer(this.charset.GetBytes(stringValue));
             this.value[rank] = buf;
             this.size += buf.ReadableBytes;
         }
@@ -50,20 +48,14 @@ namespace DotNetty.Codecs.Http.Multipart
         {
             Contract.Requires(stringValue != null);
 
-            if (rank < 0 || rank >= this.value.Count)
-            {
-                throw new ArgumentOutOfRangeException($"Index: {rank}, Size: {this.value.Count}");
-            }
-
+            IByteBuffer buf = Unpooled.CopiedBuffer(this.charset.GetBytes(stringValue));
             IByteBuffer old = this.value[rank];
+            this.value[rank] = buf;
             if (old != null)
             {
                 this.size -= old.ReadableBytes;
                 old.Release();
             }
-
-            IByteBuffer buf = Unpooled.CopiedBuffer(this.contentEncoding.GetBytes(stringValue));
-            this.value[rank] = buf;
             this.size += buf.ReadableBytes;
         }
 
@@ -71,12 +63,14 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override bool Equals(object obj)
         {
-            var attribute = obj as InternalAttribute;
-            return attribute != null 
-                && string.Compare(this.Name, attribute.Name, StringComparison.OrdinalIgnoreCase) == 0;
+            if (obj is InternalAttribute attribute)
+            {
+                return this.Name.Equals(attribute.Name, StringComparison.OrdinalIgnoreCase);
+            }
+            return false;
         }
 
-        public int CompareTo(IPostHttpData other)
+        public int CompareTo(IInterfaceHttpData other)
         {
             if (!(other is InternalAttribute))
             {
@@ -86,15 +80,14 @@ namespace DotNetty.Codecs.Http.Multipart
             return this.CompareTo((InternalAttribute)other);
         }
 
-        public int CompareTo(InternalAttribute other) => 
-            string.Compare(this.Name, other.Name, StringComparison.OrdinalIgnoreCase);
+        public int CompareTo(InternalAttribute other) => string.Compare(this.Name, other.Name, StringComparison.OrdinalIgnoreCase);
 
         public override string ToString()
         {
             var result = new StringBuilder();
             foreach (IByteBuffer buf in this.value)
             {
-                result.Append(buf.ToString(this.contentEncoding));
+                result.Append(buf.ToString(this.charset));
             }
             
             return result.ToString();

@@ -1,11 +1,13 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable ConvertToAutoPropertyWhenPossible
 namespace DotNetty.Codecs.Http.Multipart
 {
     using System;
     using System.Collections.Generic;
     using DotNetty.Buffers;
+    using DotNetty.Common.Utilities;
 
     static class HttpPostBodyUtil
     {
@@ -15,58 +17,62 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public static readonly string DefaultTextContentType = "text/plain";
 
-        internal class SeekAheadNoBackArrayException : Exception
+        public sealed class TransferEncodingMechanism
         {
+            // Default encoding
+            public static readonly TransferEncodingMechanism Bit7 = new TransferEncodingMechanism("7bit");
+
+            // Short lines but not in ASCII - no encoding
+            public static readonly TransferEncodingMechanism Bit8 = new TransferEncodingMechanism("8bit");
+
+            // Could be long text not in ASCII - no encoding
+            public static readonly TransferEncodingMechanism Binary = new TransferEncodingMechanism("binary");
+
+            readonly string value;
+
+            TransferEncodingMechanism(string value)
+            {
+                this.value = value;
+            }
+
+            public string Value => this.value;
+
+            public override string ToString() => this.value;
         }
 
         internal class SeekAheadOptimize
         {
-            static readonly SeekAheadNoBackArrayException Error = new SeekAheadNoBackArrayException();
-
-            int readerIndex;
-            readonly int origPos;
-            IByteBuffer buffer;
+            internal byte[] Bytes;
+            internal int ReaderIndex;
+            internal int Pos;
+            internal int OrigPos;
+            internal int Limit;
+            internal IByteBuffer Buffer;
 
             internal SeekAheadOptimize(IByteBuffer buffer)
             {
                 if (!buffer.HasArray)
                 {
-                    throw Error;
+                    throw new ArgumentException("buffer hasn't backing byte array");
                 }
-
-                this.buffer = buffer;
+                this.Buffer = buffer;
                 this.Bytes = buffer.Array;
-                this.readerIndex = buffer.ReaderIndex;
-                this.origPos = this.Position = buffer.ArrayOffset + this.readerIndex;
+                this.ReaderIndex = buffer.ReaderIndex;
+                this.OrigPos = this.Pos = buffer.ArrayOffset + this.ReaderIndex;
                 this.Limit = buffer.ArrayOffset + buffer.WriterIndex;
             }
 
-            public int Position { get; set; }
-
-            public int Limit { get; private set; }
-
-            public byte[] Bytes { get; private set; }
-
             internal void SetReadPosition(int minus)
             {
-                this.Position -= minus;
-                this.readerIndex = this.GetReadPosition(this.Position);
-                this.buffer.SetReaderIndex(this.readerIndex);
+                this.Pos -= minus;
+                this.ReaderIndex = this.GetReadPosition(this.Pos);
+                this.Buffer.SetReaderIndex(this.ReaderIndex);
             }
 
-            internal int GetReadPosition(int index) => index - this.origPos + this.readerIndex;
-
-            internal void Clear()
-            {
-                this.buffer = null;
-                this.Bytes = null;
-                this.Limit = 0;
-                this.Position = 0;
-                this.readerIndex = 0;
-            }
+            internal int GetReadPosition(int index) => index - this.OrigPos + this.ReaderIndex;
         }
 
-        internal static int FindNonWhitespace(IReadOnlyList<char> sb, int offset)
+        internal static int FindNonWhitespace(ICharSequence sb, int offset)
         {
             int result;
             for (result = offset; result < sb.Count; result++)
@@ -80,7 +86,7 @@ namespace DotNetty.Codecs.Http.Multipart
             return result;
         }
 
-        internal static int FindWhitespace(IReadOnlyList<char> sb, int offset)
+        internal static int FindWhitespace(ICharSequence sb, int offset)
         {
             int result;
             for (result = offset; result < sb.Count; result++)
@@ -94,7 +100,7 @@ namespace DotNetty.Codecs.Http.Multipart
             return result;
         }
 
-        internal static int FindEndOfString(IReadOnlyList<char> sb)
+        internal static int FindEndOfString(ICharSequence sb)
         {
             int result;
             for (result = sb.Count; result > 0; result--)
@@ -107,21 +113,5 @@ namespace DotNetty.Codecs.Http.Multipart
 
             return result;
         }
-    }
-
-    public class TransferEncodingMechanism
-    {
-        public static readonly TransferEncodingMechanism Bit7 = new TransferEncodingMechanism("7bit");
-
-        public static readonly TransferEncodingMechanism Bit8 = new TransferEncodingMechanism("8bit");
-
-        public static readonly TransferEncodingMechanism Binary = new TransferEncodingMechanism("binary");
-
-        TransferEncodingMechanism(string name)
-        {
-            this.Value = name;
-        }
-
-        public string Value { get; }
     }
 }

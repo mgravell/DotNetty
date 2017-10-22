@@ -4,6 +4,8 @@
 namespace DotNetty.Common.Internal
 {
     using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Runtime.CompilerServices;
     using System.Threading;
@@ -20,6 +22,8 @@ namespace DotNetty.Common.Internal
         public static IQueue<T> NewFixedMpscQueue<T>(int capacity) where T : class => new MpscArrayQueue<T>(capacity);
 
         public static IQueue<T> NewMpscQueue<T>() where T : class => new CompatibleConcurrentQueue<T>();
+
+        public static IDictionary<TKey, TValue> NewConcurrentHashMap<TKey, TValue>() => new ConcurrentDictionary<TKey, TValue>();
 
         public static ILinkedQueue<T> NewSpscLinkedQueue<T>() where T : class => new SpscLinkedQueue<T>();
 

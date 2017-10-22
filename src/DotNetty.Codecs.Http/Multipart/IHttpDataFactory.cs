@@ -18,10 +18,13 @@ namespace DotNetty.Codecs.Http.Multipart
 
         IAttribute CreateAttribute(IHttpRequest request, string name, string value);
 
-        IFileUpload CreateFileUpload(IHttpRequest request, string name, string filename, string contentType, string contentTransferEncoding, Encoding encoding, long size);
+        IFileUpload CreateFileUpload(IHttpRequest request, string name, string filename, 
+            string contentType, string contentTransferEncoding, Encoding charset, long size);
 
-        void RemoveHttpDataFromClean(IHttpRequest request, IPostHttpData data);
+        void RemoveHttpDataFromClean(IHttpRequest request, IInterfaceHttpData data);
 
         void CleanRequestHttpData(IHttpRequest request);
+
+        void CleanAllHttpData();
     }
 }

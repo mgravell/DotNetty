@@ -99,6 +99,6 @@ namespace DotNetty.Codecs.Http.Multipart
             return true;
         }
 
-        public int GetHashCode(ICharSequence obj) => ReferenceEquals(obj, null) ? 0 : obj.HashCode(true);
+        public int GetHashCode(ICharSequence obj) => obj.HashCode(true);
     }
 }

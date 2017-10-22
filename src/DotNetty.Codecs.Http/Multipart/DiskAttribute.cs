@@ -27,13 +27,13 @@ namespace DotNetty.Codecs.Http.Multipart
         {
         }
 
-        public DiskAttribute(string name, Encoding contentEncoding)
-            : base(name, contentEncoding, 0)
+        public DiskAttribute(string name, Encoding charset)
+            : base(name, charset, 0)
         {
         }
 
-        public DiskAttribute(string name, long definedSize, Encoding contentEncoding)
-            : base(name, contentEncoding, definedSize)
+        public DiskAttribute(string name, long definedSize, Encoding charset)
+            : base(name, charset, definedSize)
         {
         }
 
@@ -42,11 +42,12 @@ namespace DotNetty.Codecs.Http.Multipart
         {
         }
 
-        public DiskAttribute(string name, string value, Encoding contentEncoding)
-            : base(name, contentEncoding, 0) // Attribute have no default size
+        public DiskAttribute(string name, string value, Encoding charset)
+            : base(name, charset, 0) // Attribute have no default size
         {
             this.Value = value;
         }
+
         public override HttpDataType DataType => HttpDataType.Attribute;
 
         public string Value
@@ -54,19 +55,19 @@ namespace DotNetty.Codecs.Http.Multipart
             get
             {
                 byte[] bytes = this.GetBytes();
-                return this.ContentEncoding.GetString(bytes);
+                return this.Charset.GetString(bytes);
             }
             set
             {
                 Contract.Requires(value != null);
-                byte[] bytes = this.ContentEncoding.GetBytes(value);
+
+                byte[] bytes = this.Charset.GetBytes(value);
                 this.CheckSize(bytes.Length);
                 IByteBuffer buffer = Unpooled.WrappedBuffer(bytes);
                 if (this.DefinedSize > 0)
                 {
                     this.DefinedSize = buffer.ReadableBytes;
                 }
-
                 this.SetContent(buffer);
             }
         }
@@ -79,7 +80,6 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 this.DefinedSize = newDefinedSize;
             }
-
             base.AddContent(buffer, last);
         }
 
@@ -87,11 +87,14 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override bool Equals(object obj)
         {
-            return obj is IAttribute attribute 
-                && this.Name.Equals(attribute.Name, StringComparison.OrdinalIgnoreCase);
+            if (obj is IAttribute attribute)
+            {
+                return this.Name.Equals(attribute.Name, StringComparison.OrdinalIgnoreCase);
+            }
+            return false;
         }
 
-        public override int CompareTo(IPostHttpData other)
+        public override int CompareTo(IInterfaceHttpData other)
         {
             if (!(other is IAttribute))
             {
@@ -101,8 +104,7 @@ namespace DotNetty.Codecs.Http.Multipart
             return this.CompareTo((IAttribute)other);
         }
 
-        public int CompareTo(IAttribute attribute) => 
-            string.Compare(this.Name, attribute.Name, StringComparison.OrdinalIgnoreCase);
+        public int CompareTo(IAttribute attribute) => string.Compare(this.Name, attribute.Name, StringComparison.OrdinalIgnoreCase);
 
         public override string ToString()
         {
@@ -122,9 +124,9 @@ namespace DotNetty.Codecs.Http.Multipart
 
         protected override string DiskFilename => $"{this.Name}{this.Postfix}";
 
-        protected override string Prefix => FilePrefix;
-
         protected override string Postfix => FilePostfix;
+
+        protected override string Prefix => FilePrefix;
 
         public override IByteBufferHolder Copy() => this.Replace(this.Content?.Copy());
 
@@ -159,10 +161,8 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override IByteBufferHolder Replace(IByteBuffer content)
         {
-            var attr = new DiskAttribute(this.Name)
-            {
-                ContentEncoding = this.ContentEncoding
-            };
+            var attr = new DiskAttribute(this.Name);
+            attr.Charset = this.Charset;
             if (content != null)
             {
                 try
@@ -174,7 +174,6 @@ namespace DotNetty.Codecs.Http.Multipart
                     throw new ChannelException(e);
                 }
             }
-
             return attr;
         }
     }

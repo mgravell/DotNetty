@@ -13,10 +13,8 @@ namespace DotNetty.Codecs.Http.Multipart
         InternalAttribute
     }
 
-    /// <summary>
-    ///  Interface for all Objects that could be encoded/decoded using HttpPostRequestEncoder/Decoder
-    /// </summary>
-    public interface IPostHttpData : IComparable<IPostHttpData>, IReferenceCounted
+    // Interface for all Objects that could be encoded/decoded using HttpPostRequestEncoder/Decoder
+    public interface IInterfaceHttpData : IComparable<IInterfaceHttpData>, IReferenceCounted
     {
         string Name { get; }
 
