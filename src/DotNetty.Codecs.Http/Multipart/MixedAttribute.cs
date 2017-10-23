@@ -43,21 +43,21 @@ namespace DotNetty.Codecs.Http.Multipart
         {
         }
 
-        public MixedAttribute(string name, string value, long limitSize, Encoding contentEncoding)
+        public MixedAttribute(string name, string value, long limitSize, Encoding charset)
         {
             this.limitSize = limitSize;
             if (value.Length > this.limitSize)
             {
                 try
                 {
-                    this.attribute = new DiskAttribute(name, value, contentEncoding);
+                    this.attribute = new DiskAttribute(name, value, charset);
                 }
                 catch (IOException e)
                 {
                     // revert to Memory mode
                     try
                     {
-                        this.attribute = new MemoryAttribute(name, value, contentEncoding);
+                        this.attribute = new MemoryAttribute(name, value, charset);
                     }
                     catch (IOException)
                     {
@@ -69,7 +69,7 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 try
                 {
-                    this.attribute = new MemoryAttribute(name, value, contentEncoding);
+                    this.attribute = new MemoryAttribute(name, value, charset);
                 }
                 catch (IOException e)
                 {
@@ -101,10 +101,10 @@ namespace DotNetty.Codecs.Http.Multipart
         {
             if (this.attribute is MemoryAttribute memoryAttribute)
             {
-                this.CheckSize(memoryAttribute.Length + buffer.ReadableBytes);
+                this.CheckSize(this.attribute.Length + buffer.ReadableBytes);
                 if (this.attribute.Length + buffer.ReadableBytes > this.limitSize)
                 {
-                    var diskAttribute = new DiskAttribute(memoryAttribute.Name, memoryAttribute.DefinedLength);
+                    var diskAttribute = new DiskAttribute(this.attribute.Name, this.attribute.DefinedLength);
                     diskAttribute.MaxSize = this.maxSize;
                     if (memoryAttribute.GetByteBuffer() != null)
                     {
@@ -113,7 +113,6 @@ namespace DotNetty.Codecs.Http.Multipart
                     this.attribute = diskAttribute;
                 }
             }
-
             this.attribute.AddContent(buffer, last);
         }
 
@@ -123,19 +122,19 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public IByteBuffer GetByteBuffer() => this.attribute.GetByteBuffer();
 
-        public Encoding ContentEncoding
+        public Encoding Charset
         {
-            get => this.attribute.ContentEncoding;
-            set => this.attribute.ContentEncoding = value;
+            get => this.attribute.Charset;
+            set => this.attribute.Charset = value;
         }
 
         public string GetString() => this.attribute.GetString();
 
-        public string GetString(Encoding encoding) => this.attribute.GetString(encoding);
+        public string GetString(Encoding charset) => this.attribute.GetString(charset);
 
-        public bool Completed => this.attribute.Completed;
+        public bool IsCompleted => this.attribute.IsCompleted;
 
-        public bool InMemory => this.attribute.InMemory;
+        public bool IsInMemory => this.attribute.IsInMemory;
 
         public long Length => this.attribute.Length;
 
@@ -155,7 +154,6 @@ namespace DotNetty.Codecs.Http.Multipart
                     this.attribute.MaxSize = this.maxSize;
                 }
             }
-
             this.attribute.SetContent(buffer);
         }
 
@@ -171,7 +169,6 @@ namespace DotNetty.Codecs.Http.Multipart
                     this.attribute.MaxSize = this.maxSize;
                 }
             }
-
             this.attribute.SetContent(source);
         }
 
@@ -179,11 +176,12 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public string Name => this.attribute.Name;
 
+        // ReSharper disable once NonReadonlyMemberInGetHashCode
         public override int GetHashCode() => this.attribute.GetHashCode();
 
         public override bool Equals(object obj) => this.attribute.Equals(obj);
 
-        public int CompareTo(IPostHttpData other) => this.attribute.CompareTo(other);
+        public int CompareTo(IInterfaceHttpData other) => this.attribute.CompareTo(other);
 
         public override string ToString() => $"Mixed: {this.attribute}";
 
@@ -194,13 +192,10 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 if (value != null)
                 {
-                    byte[] bytes = this.ContentEncoding != null
-                        ? this.ContentEncoding.GetBytes(value)
+                    byte[] bytes = this.Charset != null
+                        ? this.Charset.GetBytes(value)
                         : HttpConstants.DefaultEncoding.GetBytes(value);
-                    if (bytes != null)
-                    {
-                        this.CheckSize(bytes.Length);
-                    }
+                    this.CheckSize(bytes.Length);
                 }
 
                 this.attribute.Value = value;
@@ -209,7 +204,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public IByteBuffer GetChunk(int length) => this.attribute.GetChunk(length);
 
-        public FileStream GetFileStream() => this.attribute.GetFileStream();
+        public FileStream GetFile() => this.attribute.GetFile();
 
         public IByteBufferHolder Copy() => this.attribute.Copy();
 

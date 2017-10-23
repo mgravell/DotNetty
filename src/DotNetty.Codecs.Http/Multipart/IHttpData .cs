@@ -35,7 +35,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
         string GetString();
 
-        string GetString(Encoding encoding);
+        string GetString(Encoding charset);
 
         Encoding Charset { get; set; }
 

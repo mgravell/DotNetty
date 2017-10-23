@@ -10,28 +10,29 @@ namespace DotNetty.Codecs.Http.Multipart
 
     public class MixedFileUpload : IFileUpload
     {
+        IFileUpload fileUpload;
+
         readonly long limitSize;
         readonly long definedSize;
 
-        IFileUpload fileUpload;
         long maxSize = DefaultHttpDataFactory.MaxSize;
 
 
         public MixedFileUpload(string name, string fileName, string contentType, 
-            string transferEncoding, Encoding contentEncoding, long size, long limitSize)
+            string contentTransferEncoding, Encoding charset, long size, 
+            long limitSize)
         {
             this.limitSize = limitSize;
             if (size > this.limitSize)
             {
-                this.fileUpload = new DiskFileUpload(name, fileName, contentType, 
-                    transferEncoding, contentEncoding, size);
+                this.fileUpload = new DiskFileUpload(name, fileName, contentType,
+                    contentTransferEncoding, charset, size);
             }
             else
             {
                 this.fileUpload = new MemoryFileUpload(name, fileName, contentType,
-                        transferEncoding, contentEncoding, size);
+                    contentTransferEncoding, charset, size);
             }
-
             this.definedSize = size;
         }
 
@@ -55,14 +56,15 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public void AddContent(IByteBuffer buffer, bool last)
         {
-            if (this.fileUpload is MemoryFileUpload)
-            {
+            if (this.fileUpload is MemoryFileUpload) {
                 this.CheckSize(this.fileUpload.Length + buffer.ReadableBytes);
                 if (this.fileUpload.Length + buffer.ReadableBytes > this.limitSize)
                 {
-                    var diskFileUpload = new DiskFileUpload(this.fileUpload.Name, this.fileUpload.FileName, 
+                    var diskFileUpload = new DiskFileUpload(
+                        this.fileUpload.Name, this.fileUpload.FileName, 
                         this.fileUpload.ContentType, 
-                        this.fileUpload.TransferEncoding, this.fileUpload.Charset, this.definedSize);
+                        this.fileUpload.ContentTransferEncoding, this.fileUpload.Charset,
+                        this.definedSize);
                     diskFileUpload.MaxSize = this.maxSize;
                     IByteBuffer data = this.fileUpload.GetByteBuffer();
                     if (data != null && data.IsReadable())
@@ -71,10 +73,10 @@ namespace DotNetty.Codecs.Http.Multipart
                     }
                     // release old upload
                     this.fileUpload.Release();
+
                     this.fileUpload = diskFileUpload;
                 }
             }
-
             this.fileUpload.AddContent(buffer, last);
         }
 
@@ -96,28 +98,25 @@ namespace DotNetty.Codecs.Http.Multipart
             set => this.fileUpload.ContentType = value;
         }
 
+        public string ContentTransferEncoding
+        {
+            get => this.fileUpload.ContentTransferEncoding;
+            set => this.fileUpload.ContentTransferEncoding = value;
+        }
+
         public string FileName
         {
             get => this.fileUpload.FileName;
             set => this.fileUpload.FileName = value;
         }
 
-        public string TransferEncoding
-        {
-            get => this.fileUpload.TransferEncoding;
-            set => this.fileUpload.TransferEncoding = value;
-        }
-
-
-        public HttpDataType DataType => this.fileUpload.DataType;
-
         public string GetString() => this.fileUpload.GetString();
 
         public string GetString(Encoding encoding) => this.fileUpload.GetString(encoding);
 
-        public bool Completed => this.fileUpload.Completed;
+        public bool IsCompleted => this.fileUpload.IsCompleted;
 
-        public bool InMemory => this.fileUpload.InMemory;
+        public bool IsInMemory => this.fileUpload.IsInMemory;
 
         public long Length => this.fileUpload.Length;
 
@@ -128,46 +127,55 @@ namespace DotNetty.Codecs.Http.Multipart
         public void SetContent(IByteBuffer buffer)
         {
             this.CheckSize(buffer.ReadableBytes);
-
             if (buffer.ReadableBytes > this.limitSize)
             {
                 if (this.fileUpload is MemoryFileUpload)
                 {
                     IFileUpload memoryUpload = this.fileUpload;
-
                     // change to Disk
-                    this.fileUpload = new DiskFileUpload(memoryUpload.Name, memoryUpload.FileName, memoryUpload.ContentType,
-                        memoryUpload.TransferEncoding, memoryUpload.Charset, this.definedSize);
+                    this.fileUpload = new DiskFileUpload(
+                        memoryUpload.Name, 
+                        memoryUpload.FileName,
+                        memoryUpload.ContentType,
+                        memoryUpload.ContentTransferEncoding,
+                        memoryUpload.Charset,
+                        this.definedSize);
                     this.fileUpload.MaxSize = this.maxSize;
 
                     // release old upload
                     memoryUpload.Release();
                 }
             }
-
             this.fileUpload.SetContent(buffer);
         }
 
-        public void SetContent(Stream source)
+        public void SetContent(Stream inputStream)
         {
-            this.CheckSize(source.Length);
-            if (source.Length > this.limitSize)
+            if (this.fileUpload is MemoryFileUpload)
             {
-                if (this.fileUpload is MemoryFileUpload) {
-                    IFileUpload memoryUpload = this.fileUpload;
+                IFileUpload memoryUpload = this.fileUpload;
+                // change to Disk
+                this.fileUpload = new DiskFileUpload(
+                    this.fileUpload.Name,
+                    this.fileUpload.FileName,
+                    this.fileUpload.ContentType,
+                    this.fileUpload.ContentTransferEncoding,
+                    this.fileUpload.Charset,
+                    this.definedSize);
+                this.fileUpload.MaxSize = this.maxSize;
 
-                    // change to Disk
-                    this.fileUpload = new DiskFileUpload(memoryUpload.Name, memoryUpload.FileName, memoryUpload.ContentType, 
-                        memoryUpload.TransferEncoding, memoryUpload.Charset, this.definedSize);
-                    this.fileUpload.MaxSize = this.maxSize;
-
-                    // release old upload
-                    memoryUpload.Release();
-                }
+                // release old upload
+                memoryUpload.Release();
             }
-
-            this.fileUpload.SetContent(source);
+            this.fileUpload.SetContent(inputStream);
         }
+
+        //TODO
+
+
+
+
+        public HttpDataType DataType => this.fileUpload.DataType;
 
         public string Name => this.fileUpload.Name;
 

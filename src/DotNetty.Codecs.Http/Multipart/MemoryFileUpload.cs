@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable ConvertToAutoProperty
+// ReSharper disable ConvertToAutoPropertyWhenPossible
 namespace DotNetty.Codecs.Http.Multipart
 {
     using System;
@@ -14,16 +16,18 @@ namespace DotNetty.Codecs.Http.Multipart
     {
         string fileName;
         string contentType;
+        string contentTransferEncoding;
 
-        public MemoryFileUpload(string name, string fileName, string contentType, string transferEncoding, Encoding contentEncoding, long size)
-            : base(name, contentEncoding, size)
+        public MemoryFileUpload(string name, string fileName, string contentType, 
+            string contentTransferEncoding, Encoding charset, long size)
+            : base(name, charset, size)
         {
             Contract.Requires(fileName != null);
             Contract.Requires(contentType != null);
 
             this.fileName = fileName;
             this.contentType = contentType;
-            this.TransferEncoding = transferEncoding;
+            this.contentTransferEncoding = contentTransferEncoding;
         }
 
         public override HttpDataType DataType => HttpDataType.FileUpload;
@@ -42,10 +46,14 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override bool Equals(object obj)
         {
-            return obj is IFileUpload fileUpload && FileUploadUtil.Equals(this, fileUpload);
+            if (obj is IFileUpload fileUpload)
+            {
+                return FileUploadUtil.Equals(this, fileUpload);
+            }
+            return false;
         }
 
-        public override int CompareTo(IPostHttpData other)
+        public override int CompareTo(IInterfaceHttpData other)
         {
             if (!(other is IFileUpload))
             {
@@ -63,12 +71,27 @@ namespace DotNetty.Codecs.Http.Multipart
             set
             {
                 Contract.Requires(value != null);
-
                 this.contentType = value;
             }
         }
 
-        public string TransferEncoding { get; set; }
+        public string ContentTransferEncoding
+        {
+            get => this.contentTransferEncoding;
+            set => this.contentTransferEncoding = value;
+        }
+
+        public override string ToString()
+        {
+            return HttpHeaderNames.ContentDisposition + ": " +
+                HttpHeaderValues.FormData + "; " + HttpHeaderValues.Name + "=\"" + this.Name +
+                "\"; " + HttpHeaderValues.FileName + "=\"" + this.FileName + "\"\r\n" +
+                HttpHeaderNames.ContentType + ": " + this.contentType +
+                (this.Charset != null ? "; " + HttpHeaderValues.Charset + '=' + this.Charset.WebName + "\r\n" : "\r\n") +
+                HttpHeaderNames.ContentLength + ": " + this.Length + "\r\n" +
+                "Completed: " + this.IsCompleted +
+                "\r\nIsInMemory: " + this.IsInMemory;
+        }
 
         public override IByteBufferHolder Copy() => this.Replace(this.Content?.Copy());
 
@@ -103,8 +126,8 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override IByteBufferHolder Replace(IByteBuffer content)
         {
-            var upload = new MemoryFileUpload(this.Name, this.FileName, this.ContentType, 
-                this.TransferEncoding, this.ContentEncoding, this.Size);
+            var upload = new MemoryFileUpload(
+                this.Name, this.FileName, this.ContentType, this.contentTransferEncoding, this.Charset, this.Size);
             if (content != null)
             {
                 try
@@ -117,7 +140,6 @@ namespace DotNetty.Codecs.Http.Multipart
                     throw new ChannelException(e);
                 }
             }
-
             return upload;
         }
     }

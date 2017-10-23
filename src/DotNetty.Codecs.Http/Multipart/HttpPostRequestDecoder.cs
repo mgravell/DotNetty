@@ -55,7 +55,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
         // 
         // Check from the request ContentType if this request is a Multipart request.
-        //  return an array of String if multipartDataBoundary exists with the multipartDataBoundary
+        // return an array of String if multipartDataBoundary exists with the multipartDataBoundary
         // as first element, charset if any as second (missing if not set), else null
         //
         protected internal static ICharSequence[] GetMultipartDataBoundary(ICharSequence contentType)
@@ -119,52 +119,6 @@ namespace DotNetty.Codecs.Http.Multipart
             return null;
         }
 
-        static ICharSequence[] SplitHeaderContentType(ICharSequence sb)
-        {
-            int aStart = HttpPostBodyUtil.FindNonWhitespace(sb, 0);
-            int aEnd = sb.IndexOf(';');
-            if (aEnd == -1)
-            {
-                return new[]
-                {
-                    sb,
-                    AsciiString.Empty,
-                    AsciiString.Empty
-                };
-            }
-
-            int bStart = HttpPostBodyUtil.FindNonWhitespace(sb, aEnd + 1);
-            if (sb[aEnd - 1] == ' ')
-            {
-                aEnd--;
-            }
-            int bEnd = sb.IndexOf(';', bStart);
-            if (bEnd == -1)
-            {
-                bEnd = HttpPostBodyUtil.FindEndOfString(sb);
-                return new []
-                {
-
-                    sb.SubSequence(aStart, aEnd),
-                    sb.SubSequence(bStart, bEnd),
-                    AsciiString.Empty
-                };
-            }
-
-            int cStart = HttpPostBodyUtil.FindNonWhitespace(sb, bEnd + 1);
-            if (sb[bEnd - 1] == ' ')
-            {
-                bEnd--;
-            }
-            int cEnd = HttpPostBodyUtil.FindEndOfString(sb);
-            return new []
-            {
-                sb.SubSequence(aStart, aEnd),
-                sb.SubSequence(bStart, bEnd),
-                sb.SubSequence(cStart, cEnd)
-            };
-        }
-
         public bool IsMultipart => this.decoder.IsMultipart;
 
         public int DiscardThreshold
@@ -173,24 +127,58 @@ namespace DotNetty.Codecs.Http.Multipart
             set => this.decoder.DiscardThreshold = value;
         }
 
-        public List<IPostHttpData> GetBodyDataList() => this.decoder.GetBodyDataList();
+        public List<IInterfaceHttpData> GetBodyHttpDatas() => this.decoder.GetBodyHttpDatas();
 
-        public List<IPostHttpData> GetBodyDataList(AsciiString name) => this.decoder.GetBodyDataList(name);
+        public List<IInterfaceHttpData> GetBodyHttpDatas(ICharSequence name) => this.decoder.GetBodyHttpDatas(name);
 
-        public IPostHttpData GetBodyData(AsciiString name) => this.decoder.GetBodyData(name);
+        public IInterfaceHttpData GetBodyHttpData(ICharSequence name) => this.decoder.GetBodyHttpData(name);
 
-        public IHttpPostRequestDecoder Offer(IHttpContent content) => this.decoder.Offer(content);
+        public IInterfaceHttpPostRequestDecoder Offer(IHttpContent content) => this.decoder.Offer(content);
 
         public bool HasNext => this.decoder.HasNext;
 
-        public IPostHttpData Next() => this.decoder.Next();
+        public IInterfaceHttpData Next() => this.decoder.Next();
 
-        public IPostHttpData CurrentPartialHttpData => this.decoder.CurrentPartialHttpData;
+        public IInterfaceHttpData CurrentPartialHttpData => this.decoder.CurrentPartialHttpData;
 
         public void Destroy() => this.decoder.Destroy();
 
         public void CleanFiles() => this.decoder.CleanFiles();
 
-        public void RemoveHttpDataFromClean(IPostHttpData data) => this.decoder.RemoveHttpDataFromClean(data);
+        public void RemoveHttpDataFromClean(IInterfaceHttpData data) => this.decoder.RemoveHttpDataFromClean(data);
+
+        static ICharSequence[] SplitHeaderContentType(ICharSequence sb)
+        {
+            int aStart;
+            int aEnd;
+            int bStart;
+            int bEnd;
+            int cStart;
+            int cEnd;
+            aStart = HttpPostBodyUtil.FindNonWhitespace(sb, 0);
+            aEnd = sb.IndexOf(';');
+            if (aEnd == -1)
+            {
+                return new [] { sb,  StringCharSequence.Empty, StringCharSequence.Empty };
+            }
+            bStart = HttpPostBodyUtil.FindNonWhitespace(sb, aEnd + 1);
+            if (sb[aEnd - 1] == ' ')
+            {
+                aEnd--;
+            }
+            bEnd = sb.IndexOf(';', bStart);
+            if (bEnd == -1)
+            {
+                bEnd = HttpPostBodyUtil.FindEndOfString(sb);
+                return new [] { sb.SubSequence(aStart, aEnd), sb.SubSequence(bStart, bEnd), StringCharSequence.Empty };
+            }
+            cStart = HttpPostBodyUtil.FindNonWhitespace(sb, bEnd + 1);
+            if (sb[bEnd - 1] == ' ')
+            {
+                bEnd--;
+            }
+            cEnd = HttpPostBodyUtil.FindEndOfString(sb);
+            return new [] { sb.SubSequence(aStart, aEnd), sb.SubSequence(bStart, bEnd), sb.SubSequence(cStart, cEnd) };
+        }
     }
 }

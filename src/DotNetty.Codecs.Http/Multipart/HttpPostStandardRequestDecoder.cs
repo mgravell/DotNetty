@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+// ReSharper disable RedundantAssignment
 namespace DotNetty.Codecs.Http.Multipart
 {
     using System;
@@ -282,7 +283,7 @@ namespace DotNetty.Codecs.Http.Multipart
                             {
                                 this.currentStatus = MultiPartStatus.Disposition;
                                 ampersandpos = currentpos - 1;
-                                SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                                this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                                 firstpos = currentpos;
                                 contRead = true;
                             }
@@ -296,7 +297,7 @@ namespace DotNetty.Codecs.Http.Multipart
                                     {
                                         this.currentStatus = MultiPartStatus.PreEpilogue;
                                         ampersandpos = currentpos - 2;
-                                        SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                                        this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                                         firstpos = currentpos;
                                         contRead = false;
                                     }
@@ -315,7 +316,7 @@ namespace DotNetty.Codecs.Http.Multipart
                             {
                                 this.currentStatus = MultiPartStatus.PreEpilogue;
                                 ampersandpos = currentpos - 1;
-                                SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                                this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                                 firstpos = currentpos;
                                 contRead = false;
                             }
@@ -332,11 +333,11 @@ namespace DotNetty.Codecs.Http.Multipart
                     ampersandpos = currentpos;
                     if (ampersandpos > firstpos)
                     {
-                        SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                        this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                     }
                     else if (!this.currentAttribute.IsCompleted)
                     {
-                        SetFinalBuffer(Unpooled.Empty);
+                        this.SetFinalBuffer(Unpooled.Empty);
                     }
                     firstpos = currentpos;
                     this.currentStatus = MultiPartStatus.Epilogue;
@@ -360,11 +361,11 @@ namespace DotNetty.Codecs.Http.Multipart
                     this.undecodedChunk.SetReaderIndex(firstpos);
                 }
             }
-            catch (ErrorDataDecoderException e)
+            catch (ErrorDataDecoderException)
             {
                 // error while decoding
                 this.undecodedChunk.SetReaderIndex(firstpos);
-                throw e;
+                throw;
             }
             catch (IOException e)
             {
@@ -373,7 +374,6 @@ namespace DotNetty.Codecs.Http.Multipart
                 throw new ErrorDataDecoderException(e);
             }
         }
-
 
         void ParseBodyAttributes()
         {
@@ -419,7 +419,7 @@ namespace DotNetty.Codecs.Http.Multipart
                                         this.undecodedChunk.ToString(firstpos, ampersandpos - firstpos, this.charset), this.charset);
                                 this.currentAttribute = this.factory.CreateAttribute(this.request, key);
                                 this.currentAttribute.Value = ""; // empty
-                                AddHttpData(this.currentAttribute);
+                                this.AddHttpData(this.currentAttribute);
                                 this.currentAttribute = null;
                                 firstpos = currentpos;
                                 contRead = true;
@@ -430,7 +430,7 @@ namespace DotNetty.Codecs.Http.Multipart
                             {
                                 this.currentStatus = MultiPartStatus.Disposition;
                                 ampersandpos = currentpos - 1;
-                                SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                                this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                                 firstpos = currentpos;
                                 contRead = true;
                             }
@@ -445,7 +445,7 @@ namespace DotNetty.Codecs.Http.Multipart
                                         this.currentStatus = MultiPartStatus.PreEpilogue;
                                         ampersandpos = currentpos - 2;
                                         sao.SetReadPosition(0);
-                                        SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                                        this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                                         firstpos = currentpos;
                                         contRead = false;
                                         goto loop;
@@ -470,7 +470,7 @@ namespace DotNetty.Codecs.Http.Multipart
                                 this.currentStatus = MultiPartStatus.PreEpilogue;
                                 ampersandpos = currentpos - 1;
                                 sao.SetReadPosition(0);
-                                SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                                this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                                 firstpos = currentpos;
                                 contRead = false;
                                 goto loop;
@@ -483,24 +483,24 @@ namespace DotNetty.Codecs.Http.Multipart
                             goto loop;
                     }
                 }
+                loop:
                 if (this.isLastChunk && this.currentAttribute != null)
                 {
                     // special case
                     ampersandpos = currentpos;
                     if (ampersandpos > firstpos)
                     {
-                        SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
+                        this.SetFinalBuffer(this.undecodedChunk.Copy(firstpos, ampersandpos - firstpos));
                     }
                     else if (!this.currentAttribute.IsCompleted)
                     {
-                        SetFinalBuffer(Unpooled.Empty);
+                        this.SetFinalBuffer(Unpooled.Empty);
                     }
                     firstpos = currentpos;
                     this.currentStatus = MultiPartStatus.Epilogue;
                     this.undecodedChunk.SetReaderIndex(firstpos);
                     return;
                 }
-                Loop:
                 if (contRead && this.currentAttribute != null)
                 {
                     // reset index except if to continue in case of FIELD getStatus
@@ -518,11 +518,11 @@ namespace DotNetty.Codecs.Http.Multipart
                     this.undecodedChunk.SetReaderIndex(firstpos);
                 }
             }
-            catch (ErrorDataDecoderException e)
+            catch (ErrorDataDecoderException)
             {
                 // error while decoding
                 this.undecodedChunk.SetReaderIndex(firstpos);
-                throw e;
+                throw;
             }
             catch (IOException e)
             {
@@ -538,81 +538,24 @@ namespace DotNetty.Codecs.Http.Multipart
             }
         }
 
-
-        //TODO
-
-
-
-
-
-
         void SetFinalBuffer(IByteBuffer buffer)
         {
             this.currentAttribute.AddContent(buffer, true);
-            string value = DecodeAttribute(
-                this.currentAttribute.GetByteBuffer().ToString(this.encoding), 
-                this.encoding);
+            string value = DecodeAttribute(this.currentAttribute.GetByteBuffer().ToString(this.charset), this.charset);
             this.currentAttribute.Value = value;
             this.AddHttpData(this.currentAttribute);
             this.currentAttribute = null;
         }
 
-        static string DecodeAttribute(string s, Encoding encoding)
+        static string DecodeAttribute(string s, Encoding charset)
         {
             try
             {
-                return QueryStringDecoder.DecodeComponent(s, encoding);
+                return QueryStringDecoder.DecodeComponent(s, charset);
             }
-            catch (ArgumentException exception)
+            catch (ArgumentException e)
             {
-                throw new ErrorDataDecoderException($"Bad string: '{s}\'", exception);
-            }
-        }
-
-        internal void SkipControlCharacters()
-        {
-            HttpPostBodyUtil.SeekAheadOptimize seekAhead;
-            try
-            {
-                seekAhead = new HttpPostBodyUtil.SeekAheadOptimize(this.undecodedChunk);
-            }
-            catch (HttpPostBodyUtil.SeekAheadNoBackArrayException)
-            {
-                try
-                {
-                    this.SkipControlCharactersStandard();
-                }
-                catch (IndexOutOfRangeException exception)
-                {
-                    throw new NotEnoughDataDecoderException(exception);
-                }
-
-                return;
-            }
-
-            while (seekAhead.Position < seekAhead.Limit)
-            {
-                char c = (char)(seekAhead.Bytes[seekAhead.Position++] & 0xFF);
-                if (!CharUtil.IsISOControl(c) && !char.IsWhiteSpace(c))
-                {
-                    seekAhead.SetReadPosition(1);
-                    return;
-                }
-            }
-
-            throw new NotEnoughDataDecoderException("Access out of bounds");
-        }
-
-        internal void SkipControlCharactersStandard()
-        {
-            while (true)
-            {
-                char c = (char)this.undecodedChunk.ReadByte();
-                if (!CharUtil.IsISOControl(c) && !char.IsWhiteSpace(c))
-                {
-                    this.undecodedChunk.SetReaderIndex(this.undecodedChunk.ReaderIndex - 1);
-                    break;
-                }
+                throw new ErrorDataDecoderException($"Bad string: '{s}'", e);
             }
         }
 
@@ -638,12 +581,14 @@ namespace DotNetty.Codecs.Http.Multipart
         public void CleanFiles()
         {
             this.CheckDestroyed();
+
             this.factory.CleanRequestHttpData(this.request);
         }
 
-        public void RemoveHttpDataFromClean(IPostHttpData data)
+        public void RemoveHttpDataFromClean(IInterfaceHttpData data)
         {
             this.CheckDestroyed();
+
             this.factory.RemoveHttpDataFromClean(this.request, data);
         }
     }

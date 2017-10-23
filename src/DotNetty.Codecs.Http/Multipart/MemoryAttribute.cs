@@ -22,13 +22,13 @@ namespace DotNetty.Codecs.Http.Multipart
         {
         }
 
-        public MemoryAttribute(string name, Encoding contentEncoding)
-            : base(name, contentEncoding, 0)
+        public MemoryAttribute(string name, Encoding charset)
+            : base(name, charset, 0)
         {
         }
 
-        public MemoryAttribute(string name, long definedSize, Encoding contentEncoding)
-            : base(name, contentEncoding, definedSize)
+        public MemoryAttribute(string name, long definedSize, Encoding charset)
+            : base(name, charset, definedSize)
         {
         }
 
@@ -47,19 +47,18 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public string Value
         {
-            get => this.GetByteBuffer().ToString(this.ContentEncoding);
+            get => this.GetByteBuffer().ToString(this.Charset);
             set
             {
                 Contract.Requires(value != null);
 
-                byte[] bytes = this.ContentEncoding.GetBytes(value);
+                byte[] bytes = this.Charset.GetBytes(value);
                 this.CheckSize(bytes.Length);
                 IByteBuffer buffer = Unpooled.WrappedBuffer(bytes);
                 if (this.DefinedSize > 0)
                 {
                     this.DefinedSize = buffer.ReadableBytes;
                 }
-
                 this.SetContent(buffer);
             }
         }
@@ -72,7 +71,6 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 this.DefinedSize = this.Size + localsize;
             }
-
             base.AddContent(buffer, last);
         }
 
@@ -80,11 +78,15 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override bool Equals(object obj)
         {
-            return obj is IAttribute attribute 
-                && string.Compare(this.Name, attribute.Name, StringComparison.OrdinalIgnoreCase) == 0;
+            if (obj is IAttribute attribute)
+            {
+                return this.Name.Equals(attribute.Name, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return false;
         }
 
-        public override int CompareTo(IPostHttpData other)
+        public override int CompareTo(IInterfaceHttpData other)
         {
             if (!(other is IAttribute))
             {
@@ -94,8 +96,7 @@ namespace DotNetty.Codecs.Http.Multipart
             return this.CompareTo((IAttribute)other);
         }
 
-        public int CompareTo(IAttribute attribute) => 
-            string.Compare(this.Name, attribute.Name, StringComparison.OrdinalIgnoreCase);
+        public int CompareTo(IAttribute attribute) => string.Compare(this.Name, attribute.Name, StringComparison.OrdinalIgnoreCase);
 
         public override string ToString() => $"{this.Name} = {this.Value}";
 
@@ -140,11 +141,8 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public override IByteBufferHolder Replace(IByteBuffer content)
         {
-            var attr = new MemoryAttribute(this.Name)
-            {
-                ContentEncoding = this.ContentEncoding
-            };
-
+            var attr = new MemoryAttribute(this.Name);
+            attr.Charset = this.Charset;
             if (content != null)
             {
                 try
@@ -156,7 +154,6 @@ namespace DotNetty.Codecs.Http.Multipart
                     throw new ChannelException(e);
                 }
             }
-
             return attr;
         }
     }
