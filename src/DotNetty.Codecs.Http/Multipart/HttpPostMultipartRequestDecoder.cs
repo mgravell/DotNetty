@@ -114,6 +114,14 @@ namespace DotNetty.Codecs.Http.Multipart
             this.currentStatus = MultiPartStatus.HeaderDelimiter;
         }
 
+        void CheckDestroyed()
+        {
+            if (this.destroyed)
+            {
+                throw new InvalidOperationException($"{StringUtil.SimpleClassName<HttpPostMultipartRequestDecoder>()} was destroyed already");
+            }
+        }
+
         public bool IsMultipart
         {
             get
@@ -133,7 +141,7 @@ namespace DotNetty.Codecs.Http.Multipart
             }
         }
 
-        public List<IInterfaceHttpData> GetBodyDataList()
+        public List<IInterfaceHttpData> GetBodyHttpDatas()
         {
             this.CheckDestroyed();
 
@@ -141,7 +149,6 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
             }
-
             return this.bodyListHttpData;
         }
 
@@ -392,7 +399,7 @@ namespace DotNetty.Codecs.Http.Multipart
                             }
                         }
                         // load data
-                        if (!this.LoadDataMultipart(this.undecodedChunk, this.multipartDataBoundary, this.currentAttribute))
+                        if (!LoadDataMultipart(this.undecodedChunk, this.multipartDataBoundary, this.currentAttribute))
                         {
                             // Delimiter is not found. Need more chunks.
                             return null;
@@ -488,10 +495,10 @@ namespace DotNetty.Codecs.Http.Multipart
                 return null;
             }
             this.SkipOneLine();
-            ICharSequence newline;
+            StringBuilderCharSequence newline;
             try
             {
-                newline = this.ReadDelimiter(delimiter);
+                newline = ReadDelimiter(this.undecodedChunk, delimiter);
             }
             catch (NotEnoughDataDecoderException)
             {
@@ -503,7 +510,7 @@ namespace DotNetty.Codecs.Http.Multipart
                 this.currentStatus = dispositionStatus;
                 return this.DecodeMultipart(dispositionStatus);
             }
-            if (newline.Equals(new StringCharSequence(delimiter.ToString() + "--")))
+            if (AsciiString.ContentEquals(newline, new StringCharSequence(delimiter.ToString() + "--")))
             {
                 // CloseDelimiter or MIXED CloseDelimiter found
                 this.currentStatus = closeDelimiterStatus;
@@ -530,11 +537,11 @@ namespace DotNetty.Codecs.Http.Multipart
             // read many lines until empty line with newline found! Store all data
             while (!this.SkipOneLine())
             {
-                string newline;
+                StringCharSequence newline;
                 try
                 {
                     SkipControlCharacters(this.undecodedChunk);
-                    newline = this.ReadLine(this.undecodedChunk, this.charset);
+                    newline = ReadLine(this.undecodedChunk, this.charset);
                 }
                 catch (NotEnoughDataDecoderException)
                 {
@@ -697,7 +704,6 @@ namespace DotNetty.Codecs.Http.Multipart
                     throw new ErrorDataDecoderException($"Unknown Params: {newline}");
                 }
             }
-
             // Is it a FileUpload
             this.currentFieldAttributes.TryGetValue(HttpHeaderValues.FileName, out IAttribute filenameAttribute);
             if (this.currentStatus == MultiPartStatus.Disposition)
@@ -734,63 +740,12 @@ namespace DotNetty.Codecs.Http.Multipart
             }
         }
 
-
-        //TODO
-
-
-
-        void CheckDestroyed()
-        {
-            if (this.destroyed)
-            {
-                throw new InvalidOperationException(
-                    $"{StringUtil.SimpleClassName<HttpPostMultipartRequestDecoder>()} was destroyed already");
-            }
-        }
-
-
-
-
-        public List<IPostHttpData> GetBodyDataList(AsciiString name)
-        {
-            this.CheckDestroyed();
-            if (!this.isLastChunk)
-            {
-                throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
-            }
-
-            return this.bodyMapHttpData.TryGetValue(name, out List<IPostHttpData> list) ? list : null;
-        }
-
-        public IPostHttpData GetBodyData(AsciiString name)
-        {
-            this.CheckDestroyed();
-            if (!this.isLastChunk)
-            {
-                throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
-            }
-
-            if (!this.bodyMapHttpData.TryGetValue(name, out List<IPostHttpData> list))
-            {
-                return null;
-            }
-
-            return list.Count > 0 ? list[0] : null;
-        }
-
-
-
-
-
-
-
-
-        protected IPostHttpData GetFileUpload(ICharSequence delimiter)
+        protected IInterfaceHttpData GetFileUpload(ICharSequence delimiter)
         {
             // eventually restart from existing FileUpload
             // Now get value according to Content-Type and Charset
             this.currentFieldAttributes.TryGetValue(HttpHeaderNames.ContentTransferEncoding, out IAttribute encodingAttribute);
-            Encoding localCharset = this.encoding;
+            Encoding localCharset = this.charset;
             // Default
             HttpPostBodyUtil.TransferEncodingMechanism mechanism = HttpPostBodyUtil.TransferEncodingMechanism.Bit7;
             if (encodingAttribute != null)
@@ -823,8 +778,7 @@ namespace DotNetty.Codecs.Http.Multipart
                     throw new ErrorDataDecoderException("TransferEncoding Unknown: " + code);
                 }
             }
-            this.currentFieldAttributes.TryGetValue(HttpHeaderValues.Charset, out IAttribute charsetAttribute);
-            if (charsetAttribute != null)
+            if (this.currentFieldAttributes.TryGetValue(HttpHeaderValues.Charset, out IAttribute charsetAttribute))
             {
                 try
                 {
@@ -841,12 +795,13 @@ namespace DotNetty.Codecs.Http.Multipart
             }
             if (this.currentFileUpload == null)
             {
-                IAttribute filenameAttribute = this.currentFieldAttributes[HttpHeaderValues.FileName];
-                IAttribute nameAttribute = this.currentFieldAttributes[HttpHeaderValues.Name];
+                this.currentFieldAttributes.TryGetValue(HttpHeaderValues.FileName, out IAttribute filenameAttribute);
+                this.currentFieldAttributes.TryGetValue(HttpHeaderValues.Name, out IAttribute nameAttribute);
+                this.currentFieldAttributes.TryGetValue(HttpHeaderNames.ContentType, out IAttribute contentTypeAttribute);
+                this.currentFieldAttributes.TryGetValue(HttpHeaderNames.ContentLength, out IAttribute lengthAttribute);
                 long size;
                 try
                 {
-                    this.currentFieldAttributes.TryGetValue(HttpHeaderNames.ContentLength, out IAttribute lengthAttribute);
                     size = lengthAttribute != null ? long.Parse(lengthAttribute.Value) : 0L;
                 }
                 catch (IOException e)
@@ -859,7 +814,6 @@ namespace DotNetty.Codecs.Http.Multipart
                 }
                 try
                 {
-                    this.currentFieldAttributes.TryGetValue(HttpHeaderNames.ContentType, out IAttribute contentTypeAttribute);
                     string contentType;
                     if (contentTypeAttribute != null)
                     {
@@ -869,14 +823,17 @@ namespace DotNetty.Codecs.Http.Multipart
                     {
                         contentType = HttpPostBodyUtil.DefaultBinaryContentType;
                     }
-
-                    this.currentFileUpload = this.factory.CreateFileUpload(
-                        this.request,
-                        CleanString(nameAttribute.Value).ToString(), 
-                        CleanString(filenameAttribute.Value).ToString(),
-                        contentType, 
-                        mechanism.Value, 
-                        localCharset,
+                    if (nameAttribute == null)
+                    {
+                        throw new ErrorDataDecoderException($"{HttpHeaderValues.Name} attribute cannot be null for file upload");
+                    }
+                    if (filenameAttribute == null)
+                    {
+                        throw new ErrorDataDecoderException($"{HttpHeaderValues.FileName} attribute cannot be null for file upload");
+                    }
+                    this.currentFileUpload = this.factory.CreateFileUpload(this.request,
+                        CleanString(nameAttribute.Value).ToString(), CleanString(filenameAttribute.Value).ToString(),
+                        contentType, mechanism.Value, localCharset,
                         size);
                 }
                 catch (ArgumentNullException e)
@@ -893,18 +850,12 @@ namespace DotNetty.Codecs.Http.Multipart
                 }
             }
             // load data as much as possible
-            try
+            if (!LoadDataMultipart(this.undecodedChunk, delimiter, this.currentFileUpload))
             {
-                this.ReadFileUploadByteMultipart(delimiter);
-            }
-            catch (NotEnoughDataDecoderException)
-            {
-                // do not change the buffer position
-                // since some can be already saved into FileUpload
-                // So do not change the currentStatus
+                // Delimiter is not found. Need more chunks.
                 return null;
             }
-            if (this.currentFileUpload.Completed)
+            if (this.currentFileUpload.IsCompleted)
             {
                 // ready to load the next one
                 if (this.currentStatus == MultiPartStatus.Fileupload)
@@ -941,9 +892,9 @@ namespace DotNetty.Codecs.Http.Multipart
             }
 
             // release all data which was not yet pulled
-            for (int i = this.bodyListHttpDataRank; i < this.bodyList.Count; i++)
+            for (int i = this.bodyListHttpDataRank; i < this.bodyListHttpData.Count; i++)
             {
-                this.bodyList[i].Release();
+                this.bodyListHttpData[i].Release();
             }
         }
 
@@ -953,12 +904,16 @@ namespace DotNetty.Codecs.Http.Multipart
             this.factory.CleanRequestHttpData(this.request);
         }
 
-        public void RemoveHttpDataFromClean(IPostHttpData data)
+        public void RemoveHttpDataFromClean(IInterfaceHttpData data)
         {
             this.CheckDestroyed();
+
             this.factory.RemoveHttpDataFromClean(this.request, data);
         }
 
+
+        // Remove all Attributes that should be cleaned between two FileUpload in
+        // Mixed mode
         void CleanMixedAttributes()
         {
             this.currentFieldAttributes.Remove(HttpHeaderValues.Charset);
@@ -968,24 +923,25 @@ namespace DotNetty.Codecs.Http.Multipart
             this.currentFieldAttributes.Remove(HttpHeaderValues.FileName);
         }
 
-        string ReadLineStandard()
+        static StringCharSequence ReadLineStandard(IByteBuffer undecodedChunk, Encoding charset)
         {
-            int readerIndex = this.undecodedChunk.ReaderIndex;
+            int readerIndex = undecodedChunk.ReaderIndex;
             try
             {
                 IByteBuffer line = Unpooled.Buffer(64);
-                while (this.undecodedChunk.IsReadable())
+
+                while (undecodedChunk.IsReadable())
                 {
-                    byte nextByte = this.undecodedChunk.ReadByte();
+                    byte nextByte = undecodedChunk.ReadByte();
                     if (nextByte == HttpConstants.CarriageReturn)
                     {
                         // check but do not changed readerIndex
-                        nextByte = this.undecodedChunk.GetByte(this.undecodedChunk.ReaderIndex);
+                        nextByte = undecodedChunk.GetByte(undecodedChunk.ReaderIndex);
                         if (nextByte == HttpConstants.LineFeed)
                         {
                             // force read
-                            this.undecodedChunk.ReadByte();
-                            return line.ToString(this.encoding);
+                            undecodedChunk.ReadByte();
+                            return new StringCharSequence(line.ToString(charset));
                         }
                         else
                         {
@@ -995,7 +951,7 @@ namespace DotNetty.Codecs.Http.Multipart
                     }
                     else if (nextByte == HttpConstants.LineFeed)
                     {
-                        return line.ToString(this.encoding);
+                        return new StringCharSequence(line.ToString(charset));
                     }
                     else
                     {
@@ -1005,47 +961,42 @@ namespace DotNetty.Codecs.Http.Multipart
             }
             catch (IndexOutOfRangeException e)
             {
-                this.undecodedChunk.SetReaderIndex(readerIndex);
+                undecodedChunk.SetReaderIndex(readerIndex);
                 throw new NotEnoughDataDecoderException(e);
             }
-
-            this.undecodedChunk.SetReaderIndex(readerIndex);
-            throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+            undecodedChunk.SetReaderIndex(readerIndex);
+            throw new NotEnoughDataDecoderException(nameof(ReadDelimiterStandard));
         }
 
-        string ReadLine()
+        static StringCharSequence ReadLine(IByteBuffer undecodedChunk, Encoding charset)
         {
-            HttpPostBodyUtil.SeekAheadOptimize seekAhead;
-            try
+            if (!undecodedChunk.HasArray)
             {
-                seekAhead = new HttpPostBodyUtil.SeekAheadOptimize(this.undecodedChunk);
+                return ReadLineStandard(undecodedChunk, charset);
             }
-            catch (HttpPostBodyUtil.SeekAheadNoBackArrayException)
-            {
-                return this.ReadLineStandard();
-            }
-
-            int readerIndex = this.undecodedChunk.ReaderIndex;
+            var sao = new HttpPostBodyUtil.SeekAheadOptimize(undecodedChunk);
+            int readerIndex = undecodedChunk.ReaderIndex;
             try
             {
                 IByteBuffer line = Unpooled.Buffer(64);
-                while (seekAhead.Position < seekAhead.Limit)
+
+                while (sao.Pos < sao.Limit)
                 {
-                    byte nextByte = seekAhead.Bytes[seekAhead.Position++];
+                    byte nextByte = sao.Bytes[sao.Pos++];
                     if (nextByte == HttpConstants.CarriageReturn)
                     {
-                        if (seekAhead.Position < seekAhead.Limit)
+                        if (sao.Pos < sao.Limit)
                         {
-                            nextByte = seekAhead.Bytes[seekAhead.Position++];
+                            nextByte = sao.Bytes[sao.Pos++];
                             if (nextByte == HttpConstants.LineFeed)
                             {
-                                seekAhead.SetReadPosition(0);
-                                return line.ToString(this.encoding);
+                                sao.SetReadPosition(0);
+                                return new StringCharSequence(line.ToString(charset));
                             }
                             else
                             {
                                 // Write CR (not followed by LF)
-                                seekAhead.Position--;
+                                sao.Pos--;
                                 line.WriteByte(HttpConstants.CarriageReturn);
                             }
                         }
@@ -1056,8 +1007,8 @@ namespace DotNetty.Codecs.Http.Multipart
                     }
                     else if (nextByte == HttpConstants.LineFeed)
                     {
-                        seekAhead.SetReadPosition(0);
-                        return line.ToString(this.encoding);
+                        sao.SetReadPosition(0);
+                        return new StringCharSequence(line.ToString(charset));
                     }
                     else
                     {
@@ -1067,25 +1018,24 @@ namespace DotNetty.Codecs.Http.Multipart
             }
             catch (IndexOutOfRangeException e)
             {
-                this.undecodedChunk.SetReaderIndex(readerIndex);
+                undecodedChunk.SetReaderIndex(readerIndex);
                 throw new NotEnoughDataDecoderException(e);
             }
-
-            this.undecodedChunk.SetReaderIndex(readerIndex);
-            throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+            undecodedChunk.SetReaderIndex(readerIndex);
+            throw new NotEnoughDataDecoderException(nameof(ReadLine));
         }
 
-        ICharSequence ReadDelimiterStandard(ICharSequence delimiter)
+        static StringBuilderCharSequence ReadDelimiterStandard(IByteBuffer undecodedChunk, ICharSequence delimiter)
         {
-            int readerIndex = this.undecodedChunk.ReaderIndex;
+            int readerIndex = undecodedChunk.ReaderIndex;
             try
             {
                 var sb = new StringBuilderCharSequence(64);
                 int delimiterPos = 0;
                 int len = delimiter.Count;
-                while (this.undecodedChunk.IsReadable() && delimiterPos < len)
+                while (undecodedChunk.IsReadable() && delimiterPos < len)
                 {
-                    byte nextByte = this.undecodedChunk.ReadByte();
+                    byte nextByte = undecodedChunk.ReadByte();
                     if (nextByte == delimiter[delimiterPos])
                     {
                         delimiterPos++;
@@ -1094,19 +1044,18 @@ namespace DotNetty.Codecs.Http.Multipart
                     else
                     {
                         // delimiter not found so break here !
-                        this.undecodedChunk.SetReaderIndex(readerIndex);
-                        throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                        undecodedChunk.SetReaderIndex(readerIndex);
+                        throw new NotEnoughDataDecoderException(nameof(ReadDelimiterStandard));
                     }
                 }
-
                 // Now check if either opening delimiter or closing delimiter
-                if (this.undecodedChunk.IsReadable())
+                if (undecodedChunk.IsReadable())
                 {
-                    byte nextByte = this.undecodedChunk.ReadByte();
+                    byte nextByte = undecodedChunk.ReadByte();
                     // first check for opening delimiter
                     if (nextByte == HttpConstants.CarriageReturn)
                     {
-                        nextByte = this.undecodedChunk.ReadByte();
+                        nextByte = undecodedChunk.ReadByte();
                         if (nextByte == HttpConstants.LineFeed)
                         {
                             return sb;
@@ -1115,8 +1064,8 @@ namespace DotNetty.Codecs.Http.Multipart
                         {
                             // error since CR must be followed by LF
                             // delimiter not found so break here !
-                            this.undecodedChunk.SetReaderIndex(readerIndex);
-                            throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                            undecodedChunk.SetReaderIndex(readerIndex);
+                            throw new NotEnoughDataDecoderException(nameof(ReadDelimiterStandard));
                         }
                     }
                     else if (nextByte == HttpConstants.LineFeed)
@@ -1127,17 +1076,17 @@ namespace DotNetty.Codecs.Http.Multipart
                     {
                         sb.Append('-');
                         // second check for closing delimiter
-                        nextByte = this.undecodedChunk.ReadByte();
+                        nextByte = undecodedChunk.ReadByte();
                         if (nextByte == '-')
                         {
                             sb.Append('-');
                             // now try to find if CRLF or LF there
-                            if (this.undecodedChunk.IsReadable())
+                            if (undecodedChunk.IsReadable())
                             {
-                                nextByte = this.undecodedChunk.ReadByte();
+                                nextByte = undecodedChunk.ReadByte();
                                 if (nextByte == HttpConstants.CarriageReturn)
                                 {
-                                    nextByte = this.undecodedChunk.ReadByte();
+                                    nextByte = undecodedChunk.ReadByte();
                                     if (nextByte == HttpConstants.LineFeed)
                                     {
                                         return sb;
@@ -1146,8 +1095,8 @@ namespace DotNetty.Codecs.Http.Multipart
                                     {
                                         // error CR without LF
                                         // delimiter not found so break here !
-                                        this.undecodedChunk.SetReaderIndex(readerIndex);
-                                        throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                                        undecodedChunk.SetReaderIndex(readerIndex);
+                                        throw new NotEnoughDataDecoderException(nameof(ReadDelimiterStandard));
                                     }
                                 }
                                 else if (nextByte == HttpConstants.LineFeed)
@@ -1159,7 +1108,7 @@ namespace DotNetty.Codecs.Http.Multipart
                                     // No CRLF but ok however (Adobe Flash uploader)
                                     // minus 1 since we read one char ahead but
                                     // should not
-                                    this.undecodedChunk.SetReaderIndex(this.undecodedChunk.ReaderIndex - 1);
+                                    undecodedChunk.SetReaderIndex(undecodedChunk.ReaderIndex - 1);
                                     return sb;
                                 }
                             }
@@ -1176,36 +1125,30 @@ namespace DotNetty.Codecs.Http.Multipart
             }
             catch (IndexOutOfRangeException e)
             {
-                this.undecodedChunk.SetReaderIndex(readerIndex);
+                undecodedChunk.SetReaderIndex(readerIndex);
                 throw new NotEnoughDataDecoderException(e);
             }
-
-            this.undecodedChunk.SetReaderIndex(readerIndex);
-            throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+            undecodedChunk.SetReaderIndex(readerIndex);
+            throw new NotEnoughDataDecoderException(nameof(ReadDelimiterStandard));
         }
 
-        ICharSequence ReadDelimiter(ICharSequence delimiter)
+        static StringBuilderCharSequence ReadDelimiter(IByteBuffer undecodedChunk, ICharSequence delimiter)
         {
-            HttpPostBodyUtil.SeekAheadOptimize seekAhead;
-            try
+            if (!undecodedChunk.HasArray)
             {
-                seekAhead = new HttpPostBodyUtil.SeekAheadOptimize(this.undecodedChunk);
+                return ReadDelimiterStandard(undecodedChunk, delimiter);
             }
-            catch (HttpPostBodyUtil.SeekAheadNoBackArrayException)
-            {
-                return this.ReadDelimiterStandard(delimiter);
-            }
-
-            int readerIndex = this.undecodedChunk.ReaderIndex;
+            var sao = new HttpPostBodyUtil.SeekAheadOptimize(undecodedChunk);
+            int readerIndex = undecodedChunk.ReaderIndex;
             int delimiterPos = 0;
             int len = delimiter.Count;
             try
             {
                 var sb = new StringBuilderCharSequence(64);
                 // check conformity with delimiter
-                while (seekAhead.Position < seekAhead.Limit && delimiterPos < len)
+                while (sao.Pos < sao.Limit && delimiterPos < len)
                 {
-                    byte nextByte = seekAhead.Bytes[seekAhead.Position++];
+                    byte nextByte = sao.Bytes[sao.Pos++];
                     if (nextByte == delimiter[delimiterPos])
                     {
                         delimiterPos++;
@@ -1214,92 +1157,91 @@ namespace DotNetty.Codecs.Http.Multipart
                     else
                     {
                         // delimiter not found so break here !
-                        this.undecodedChunk.SetReaderIndex(readerIndex);
-                        throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                        undecodedChunk.SetReaderIndex(readerIndex);
+                        throw new NotEnoughDataDecoderException(nameof(ReadDelimiter));
                     }
                 }
-
                 // Now check if either opening delimiter or closing delimiter
-                if (seekAhead.Position < seekAhead.Limit)
+                if (sao.Pos < sao.Limit)
                 {
-                    byte nextByte = seekAhead.Bytes[seekAhead.Position++];
+                    byte nextByte = sao.Bytes[sao.Pos++];
                     if (nextByte == HttpConstants.CarriageReturn)
                     {
                         // first check for opening delimiter
-                        if (seekAhead.Position < seekAhead.Limit)
+                        if (sao.Pos < sao.Limit)
                         {
-                            nextByte = seekAhead.Bytes[seekAhead.Position++];
+                            nextByte = sao.Bytes[sao.Pos++];
                             if (nextByte == HttpConstants.LineFeed)
                             {
-                                seekAhead.SetReadPosition(0);
+                                sao.SetReadPosition(0);
                                 return sb;
                             }
                             else
                             {
                                 // error CR without LF
                                 // delimiter not found so break here !
-                                this.undecodedChunk.SetReaderIndex(readerIndex);
-                                throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                                undecodedChunk.SetReaderIndex(readerIndex);
+                                throw new NotEnoughDataDecoderException(nameof(ReadDelimiter));
                             }
                         }
                         else
                         {
                             // error since CR must be followed by LF
                             // delimiter not found so break here !
-                            this.undecodedChunk.SetReaderIndex(readerIndex);
-                            throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                            undecodedChunk.SetReaderIndex(readerIndex);
+                            throw new NotEnoughDataDecoderException(nameof(ReadDelimiter));
                         }
                     }
                     else if (nextByte == HttpConstants.LineFeed)
                     {
                         // same first check for opening delimiter where LF used with
                         // no CR
-                        seekAhead.SetReadPosition(0);
+                        sao.SetReadPosition(0);
                         return sb;
                     }
                     else if (nextByte == '-')
                     {
                         sb.Append('-');
                         // second check for closing delimiter
-                        if (seekAhead.Position < seekAhead.Limit)
+                        if (sao.Pos < sao.Limit)
                         {
-                            nextByte = seekAhead.Bytes[seekAhead.Position++];
+                            nextByte = sao.Bytes[sao.Pos++];
                             if (nextByte == '-')
                             {
                                 sb.Append('-');
                                 // now try to find if CRLF or LF there
-                                if (seekAhead.Position < seekAhead.Limit)
+                                if (sao.Pos < sao.Limit)
                                 {
-                                    nextByte = seekAhead.Bytes[seekAhead.Position++];
+                                    nextByte = sao.Bytes[sao.Pos++];
                                     if (nextByte == HttpConstants.CarriageReturn)
                                     {
-                                        if (seekAhead.Position < seekAhead.Limit)
+                                        if (sao.Pos < sao.Limit)
                                         {
-                                            nextByte = seekAhead.Bytes[seekAhead.Position++];
+                                            nextByte = sao.Bytes[sao.Pos++];
                                             if (nextByte == HttpConstants.LineFeed)
                                             {
-                                                seekAhead.SetReadPosition(0);
+                                                sao.SetReadPosition(0);
                                                 return sb;
                                             }
                                             else
                                             {
                                                 // error CR without LF
                                                 // delimiter not found so break here !
-                                                this.undecodedChunk.SetReaderIndex(readerIndex);
-                                                throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                                                undecodedChunk.SetReaderIndex(readerIndex);
+                                                throw new NotEnoughDataDecoderException(nameof(ReadDelimiter));
                                             }
                                         }
                                         else
                                         {
                                             // error CR without LF
                                             // delimiter not found so break here !
-                                            this.undecodedChunk.SetReaderIndex(readerIndex);
-                                            throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                                            undecodedChunk.SetReaderIndex(readerIndex);
+                                            throw new NotEnoughDataDecoderException(nameof(ReadDelimiter));
                                         }
                                     }
                                     else if (nextByte == HttpConstants.LineFeed)
                                     {
-                                        seekAhead.SetReadPosition(0);
+                                        sao.SetReadPosition(0);
                                         return sb;
                                     }
                                     else
@@ -1308,7 +1250,7 @@ namespace DotNetty.Codecs.Http.Multipart
                                         // uploader)
                                         // minus 1 since we read one char ahead but
                                         // should not
-                                        seekAhead.SetReadPosition(1);
+                                        sao.SetReadPosition(1);
                                         return sb;
                                     }
                                 }
@@ -1316,7 +1258,7 @@ namespace DotNetty.Codecs.Http.Multipart
                                 // either considering it is fine, either waiting for
                                 // more data to come?
                                 // lets try considering it is fine...
-                                seekAhead.SetReadPosition(0);
+                                sao.SetReadPosition(0);
                                 return sb;
                             }
                             // whatever now => error since incomplete
@@ -1328,621 +1270,139 @@ namespace DotNetty.Codecs.Http.Multipart
             }
             catch (IndexOutOfRangeException e)
             {
-                this.undecodedChunk.SetReaderIndex(readerIndex);
+                undecodedChunk.SetReaderIndex(readerIndex);
                 throw new NotEnoughDataDecoderException(e);
             }
-
-            this.undecodedChunk.SetReaderIndex(readerIndex);
-            throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+            undecodedChunk.SetReaderIndex(readerIndex);
+            throw new NotEnoughDataDecoderException(nameof(ReadDelimiter));
         }
 
-        void ReadFileUploadByteMultipartStandard(ICharSequence delimiter)
+        static bool LoadDataMultipartStandard(IByteBuffer undecodedChunk, ICharSequence delimiter, IHttpData httpData)
         {
-            int readerIndex = this.undecodedChunk.ReaderIndex;
-            // found the decoder limit
-            bool newLine = true;
+            int startReaderIndex = undecodedChunk.ReaderIndex;
+            int delimeterLength = delimiter.Count;
             int index = 0;
-            int lastPosition = this.undecodedChunk.ReaderIndex;
-            bool found = false;
-
-            while (this.undecodedChunk.IsReadable())
+            int lastPosition = startReaderIndex;
+            byte prevByte = HttpConstants.LineFeed;
+            bool delimiterFound = false;
+            while (undecodedChunk.IsReadable())
             {
-                byte nextByte = this.undecodedChunk.ReadByte();
-                if (newLine)
+                byte nextByte = undecodedChunk.ReadByte();
+                // Check the delimiter
+                if (prevByte == HttpConstants.LineFeed && nextByte == CharUtil.CodePointAt(delimiter, index))
                 {
-                    // Check the delimiter
-                    if (nextByte == CharUtil.CodePointAt(delimiter, index))
+                    index++;
+                    if (delimeterLength == index)
                     {
-                        index++;
-                        if (delimiter.Count == index)
-                        {
-                            found = true;
-                            break;
-                        }
+                        delimiterFound = true;
+                        break;
                     }
-                    else
-                    {
-                        newLine = false;
-                        index = 0;
-                        // continue until end of line
-                        if (nextByte == HttpConstants.CarriageReturn)
-                        {
-                            if (this.undecodedChunk.IsReadable())
-                            {
-                                nextByte = this.undecodedChunk.ReadByte();
-                                if (nextByte == HttpConstants.LineFeed)
-                                {
-                                    newLine = true;
-                                    index = 0;
-                                    lastPosition = this.undecodedChunk.ReaderIndex - 2;
-                                }
-                                else
-                                {
-                                    // save last valid position
-                                    lastPosition = this.undecodedChunk.ReaderIndex - 1;
-
-                                    // Unread next byte.
-                                    this.undecodedChunk.SetReaderIndex(lastPosition);
-                                }
-                            }
-                        }
-                        else if (nextByte == HttpConstants.LineFeed)
-                        {
-                            newLine = true;
-                            index = 0;
-                            lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                        }
-                        else
-                        {
-                            // save last valid position
-                            lastPosition = this.undecodedChunk.ReaderIndex;
-                        }
-                    }
+                    continue;
                 }
-                else
+                lastPosition = undecodedChunk.ReaderIndex;
+                if (nextByte == HttpConstants.LineFeed)
                 {
-                    // continue until end of line
-                    if (nextByte == HttpConstants.CarriageReturn)
-                    {
-                        if (this.undecodedChunk.IsReadable())
-                        {
-                            nextByte = this.undecodedChunk.ReadByte();
-                            if (nextByte == HttpConstants.LineFeed)
-                            {
-                                newLine = true;
-                                index = 0;
-                                lastPosition = this.undecodedChunk.ReaderIndex - 2;
-                            }
-                            else
-                            {
-                                // save last valid position
-                                lastPosition = this.undecodedChunk.ReaderIndex - 1;
-
-                                // Unread next byte.
-                                this.undecodedChunk.SetReaderIndex(lastPosition);
-                            }
-                        }
-                    }
-                    else if (nextByte == HttpConstants.LineFeed)
-                    {
-                        newLine = true;
-                        index = 0;
-                        lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                    }
-                    else
-                    {
-                        // save last valid position
-                        lastPosition = this.undecodedChunk.ReaderIndex;
-                    }
+                    index = 0;
+                    lastPosition -= (prevByte == HttpConstants.CarriageReturn) ? 2 : 1;
                 }
+                prevByte = nextByte;
             }
-            IByteBuffer buffer = this.undecodedChunk.Copy(readerIndex, lastPosition - readerIndex);
-            if (found)
+            if (prevByte == HttpConstants.CarriageReturn)
             {
-                // found so lastPosition is correct and final
-                try
-                {
-                    this.currentFileUpload.AddContent(buffer, true);
-                    // just before the CRLF and delimiter
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-                }
-                catch (IOException e)
-                {
-                    throw new ErrorDataDecoderException(e);
-                }
+                lastPosition--;
             }
-            else
-            {
-                // possibly the delimiter is partially found but still the last
-                // position is OK
-                try
-                {
-                    this.currentFileUpload.AddContent(buffer, false);
-                    // last valid char (not CR, not LF, not beginning of delimiter)
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-
-                    throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
-                }
-                catch (IOException e)
-                {
-                    throw new ErrorDataDecoderException(e);
-                }
-            }
-        }
-
-        void ReadFileUploadByteMultipart(ICharSequence delimiter)
-        {
-            HttpPostBodyUtil.SeekAheadOptimize seekAhead;
+            IByteBuffer content = undecodedChunk.Copy(startReaderIndex, lastPosition - startReaderIndex);
             try
             {
-                seekAhead = new HttpPostBodyUtil.SeekAheadOptimize(this.undecodedChunk);
+                httpData.AddContent(content, delimiterFound);
             }
-            catch (HttpPostBodyUtil.SeekAheadNoBackArrayException)
+            catch (IOException e)
             {
-                this.ReadFileUploadByteMultipartStandard(delimiter);
-                return;
+                throw new ErrorDataDecoderException(e);
             }
+            undecodedChunk.SetReaderIndex(lastPosition);
+            return delimiterFound;
+        }
 
-            int readerIndex = this.undecodedChunk.ReaderIndex;
-            // found the decoder limit
-            bool newLine = true;
+        static bool LoadDataMultipart(IByteBuffer undecodedChunk, ICharSequence delimiter, IHttpData httpData)
+        {
+            if (!undecodedChunk.HasArray)
+            {
+                return LoadDataMultipartStandard(undecodedChunk, delimiter, httpData);
+            }
+            var sao = new HttpPostBodyUtil.SeekAheadOptimize(undecodedChunk);
+            int startReaderIndex = undecodedChunk.ReaderIndex;
+            int delimeterLength = delimiter.Count;
             int index = 0;
-            int lastrealpos = seekAhead.Position;
-            bool found = false;
-
-            while (seekAhead.Position < seekAhead.Limit)
+            int lastRealPos = sao.Pos;
+            byte prevByte = HttpConstants.LineFeed;
+            bool delimiterFound = false;
+            while (sao.Pos < sao.Limit)
             {
-                byte nextByte = seekAhead.Bytes[seekAhead.Position++];
-                if (newLine)
+                byte nextByte = sao.Bytes[sao.Pos++];
+                // Check the delimiter
+                if (prevByte == HttpConstants.LineFeed && nextByte == CharUtil.CodePointAt(delimiter, index))
                 {
-                    // Check the delimiter
-                    if (nextByte == CharUtil.CodePointAt(delimiter, index))
+                    index++;
+                    if (delimeterLength == index)
                     {
-                        index++;
-                        if (delimiter.Count == index)
-                        {
-                            found = true;
-                            break;
-                        }
+                        delimiterFound = true;
+                        break;
                     }
-                    else
-                    {
-                        newLine = false;
-                        index = 0;
-                        // continue until end of line
-                        if (nextByte == HttpConstants.CarriageReturn)
-                        {
-                            if (seekAhead.Position < seekAhead.Limit)
-                            {
-                                nextByte = seekAhead.Bytes[seekAhead.Position++];
-                                if (nextByte == HttpConstants.LineFeed)
-                                {
-                                    newLine = true;
-                                    index = 0;
-                                    lastrealpos = seekAhead.Position - 2;
-                                }
-                                else
-                                {
-                                    // unread next byte
-                                    seekAhead.Position--;
-
-                                    // save last valid position
-                                    lastrealpos = seekAhead.Position;
-                                }
-                            }
-                        }
-                        else if (nextByte == HttpConstants.LineFeed)
-                        {
-                            newLine = true;
-                            index = 0;
-                            lastrealpos = seekAhead.Position - 1;
-                        }
-                        else
-                        {
-                            // save last valid position
-                            lastrealpos = seekAhead.Position;
-                        }
-                    }
+                    continue;
                 }
-                else
+                lastRealPos = sao.Pos;
+                if (nextByte == HttpConstants.LineFeed)
                 {
-                    // continue until end of line
-                    if (nextByte == HttpConstants.CarriageReturn)
-                    {
-                        if (seekAhead.Position < seekAhead.Limit)
-                        {
-                            nextByte = seekAhead.Bytes[seekAhead.Position++];
-                            if (nextByte == HttpConstants.LineFeed)
-                            {
-                                newLine = true;
-                                index = 0;
-                                lastrealpos = seekAhead.Position - 2;
-                            }
-                            else
-                            {
-                                // unread next byte
-                                seekAhead.Position--;
-
-                                // save last valid position
-                                lastrealpos = seekAhead.Position;
-                            }
-                        }
-                    }
-                    else if (nextByte == HttpConstants.LineFeed)
-                    {
-                        newLine = true;
-                        index = 0;
-                        lastrealpos = seekAhead.Position - 1;
-                    }
-                    else
-                    {
-                        // save last valid position
-                        lastrealpos = seekAhead.Position;
-                    }
+                    index = 0;
+                    lastRealPos -= (prevByte == HttpConstants.CarriageReturn) ? 2 : 1;
                 }
+                prevByte = nextByte;
             }
-            int lastPosition = seekAhead.GetReadPosition(lastrealpos);
-            IByteBuffer buffer = this.undecodedChunk.Copy(readerIndex, lastPosition - readerIndex);
-            if (found)
+            if (prevByte == HttpConstants.CarriageReturn)
             {
-                // found so lastPosition is correct and final
-                try
-                {
-                    this.currentFileUpload.AddContent(buffer, true);
-                    // just before the CRLF and delimiter
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-                }
-                catch (IOException e)
-                {
-                    throw new ErrorDataDecoderException(e);
-                }
+                lastRealPos--;
             }
-            else
-            {
-                // possibly the delimiter is partially found but still the last
-                // position is OK
-                try
-                {
-                    this.currentFileUpload.AddContent(buffer, false);
-                    // last valid char (not CR, not LF, not beginning of delimiter)
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-
-                    throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
-                }
-                catch (IOException e)
-                {
-                    throw new ErrorDataDecoderException(e);
-                }
-            }
-        }
-
-        void LoadFieldMultipartStandard(ICharSequence delimiter)
-        {
-            int readerIndex = this.undecodedChunk.ReaderIndex;
+            int lastPosition = sao.GetReadPosition(lastRealPos);
+            IByteBuffer content = undecodedChunk.Copy(startReaderIndex, lastPosition - startReaderIndex);
             try
             {
-                // found the decoder limit
-                bool newLine = true;
-                int index = 0;
-                int lastPosition = this.undecodedChunk.ReaderIndex;
-                bool found = false;
-
-                while (this.undecodedChunk.IsReadable())
-                {
-                    byte nextByte = this.undecodedChunk.ReadByte();
-                    if (newLine)
-                    {
-                        // Check the delimiter
-                        if (nextByte == CharUtil.CodePointAt(delimiter, index))
-                        {
-                            index++;
-                            if (delimiter.Count == index)
-                            {
-                                found = true;
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            newLine = false;
-                            index = 0;
-                            // continue until end of line
-                            if (nextByte == HttpConstants.CarriageReturn)
-                            {
-                                if (this.undecodedChunk.IsReadable())
-                                {
-                                    nextByte = this.undecodedChunk.ReadByte();
-                                    if (nextByte == HttpConstants.LineFeed)
-                                    {
-                                        newLine = true;
-                                        index = 0;
-                                        lastPosition = this.undecodedChunk.ReaderIndex - 2;
-                                    }
-                                    else
-                                    {
-                                        // Unread second nextByte
-                                        lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                                        this.undecodedChunk.SetReaderIndex(lastPosition);
-                                    }
-                                }
-                                else
-                                {
-                                    lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                                }
-                            }
-                            else if (nextByte == HttpConstants.LineFeed)
-                            {
-                                newLine = true;
-                                index = 0;
-                                lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                            }
-                            else
-                            {
-                                lastPosition = this.undecodedChunk.ReaderIndex;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // continue until end of line
-                        if (nextByte == HttpConstants.CarriageReturn)
-                        {
-                            if (this.undecodedChunk.IsReadable())
-                            {
-                                nextByte = this.undecodedChunk.ReadByte();
-                                if (nextByte == HttpConstants.LineFeed)
-                                {
-                                    newLine = true;
-                                    index = 0;
-                                    lastPosition = this.undecodedChunk.ReaderIndex - 2;
-                                }
-                                else
-                                {
-                                    // Unread second nextByte
-                                    lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                                    this.undecodedChunk.SetReaderIndex(lastPosition);
-                                }
-                            }
-                            else
-                            {
-                                lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                            }
-                        }
-                        else if (nextByte == HttpConstants.LineFeed)
-                        {
-                            newLine = true;
-                            index = 0;
-                            lastPosition = this.undecodedChunk.ReaderIndex - 1;
-                        }
-                        else
-                        {
-                            lastPosition = this.undecodedChunk.ReaderIndex;
-                        }
-                    }
-                }
-                if (found)
-                {
-                    // found so lastPosition is correct
-                    // but position is just after the delimiter (either close
-                    // delimiter or simple one)
-                    // so go back of delimiter size
-                    try
-                    {
-                        this.currentAttribute.AddContent(
-                            this.undecodedChunk.Copy(readerIndex, lastPosition - readerIndex), true);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new ErrorDataDecoderException(e);
-                    }
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-                }
-                else
-                {
-                    try
-                    {
-                        this.currentAttribute.AddContent(
-                            this.undecodedChunk.Copy(readerIndex, lastPosition - readerIndex), false);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new ErrorDataDecoderException(e);
-                    }
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-
-                    throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
-                }
+                httpData.AddContent(content, delimiterFound);
             }
-            catch (IndexOutOfRangeException e)
+            catch (IOException e)
             {
-                this.undecodedChunk.SetReaderIndex(readerIndex);
-                throw new NotEnoughDataDecoderException(e);
+                throw new ErrorDataDecoderException(e);
             }
+            undecodedChunk.SetReaderIndex(lastPosition);
+            return delimiterFound;
         }
 
-        void LoadFieldMultipart(ICharSequence delimiter)
+        static ICharSequence CleanString(string field) => CleanString(new StringCharSequence(field));
+
+        static ICharSequence CleanString(ICharSequence field)
         {
-            HttpPostBodyUtil.SeekAheadOptimize seekAhead;
-            try
+            int size = field.Count;
+            var sb = new StringBuilderCharSequence(size);
+            for (int i = 0; i < size; i++)
             {
-                seekAhead = new HttpPostBodyUtil.SeekAheadOptimize(this.undecodedChunk);
-            }
-            catch (HttpPostBodyUtil.SeekAheadNoBackArrayException)
-            {
-                this.LoadFieldMultipartStandard(delimiter);
-                return;
-            }
-
-            int readerIndex = this.undecodedChunk.ReaderIndex;
-            try
-            {
-                // found the decoder limit
-                bool newLine = true;
-                int index = 0;
-                int lastrealpos = seekAhead.Position;
-                bool found = false;
-
-                while (seekAhead.Position < seekAhead.Limit)
+                char nextChar = field[i];
+                switch ((byte)nextChar)
                 {
-                    byte nextByte = seekAhead.Bytes[seekAhead.Position++];
-                    if (newLine)
-                    {
-                        // Check the delimiter
-                        if (nextByte == CharUtil.CodePointAt(delimiter, index))
-                        {
-                            index++;
-                            if (delimiter.Count == index)
-                            {
-                                found = true;
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            newLine = false;
-                            index = 0;
-                            // continue until end of line
-                            if (nextByte == HttpConstants.CarriageReturn)
-                            {
-                                if (seekAhead.Position < seekAhead.Limit)
-                                {
-                                    nextByte = seekAhead.Bytes[seekAhead.Position++];
-                                    if (nextByte == HttpConstants.LineFeed)
-                                    {
-                                        newLine = true;
-                                        index = 0;
-                                        lastrealpos = seekAhead.Position - 2;
-                                    }
-                                    else
-                                    {
-                                        // Unread last nextByte
-                                        seekAhead.Position--;
-                                        lastrealpos = seekAhead.Position;
-                                    }
-                                }
-                            }
-                            else if (nextByte == HttpConstants.LineFeed)
-                            {
-                                newLine = true;
-                                index = 0;
-                                lastrealpos = seekAhead.Position - 1;
-                            }
-                            else
-                            {
-                                lastrealpos = seekAhead.Position;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // continue until end of line
-                        if (nextByte == HttpConstants.CarriageReturn)
-                        {
-                            if (seekAhead.Position < seekAhead.Limit)
-                            {
-                                nextByte = seekAhead.Bytes[seekAhead.Position++];
-                                if (nextByte == HttpConstants.LineFeed)
-                                {
-                                    newLine = true;
-                                    index = 0;
-                                    lastrealpos = seekAhead.Position - 2;
-                                }
-                                else
-                                {
-                                    // Unread last nextByte
-                                    seekAhead.Position--;
-                                    lastrealpos = seekAhead.Position;
-                                }
-                            }
-                        }
-                        else if (nextByte == HttpConstants.LineFeed)
-                        {
-                            newLine = true;
-                            index = 0;
-                            lastrealpos = seekAhead.Position - 1;
-                        }
-                        else
-                        {
-                            lastrealpos = seekAhead.Position;
-                        }
-                    }
-                }
-                int lastPosition = seekAhead.GetReadPosition(lastrealpos);
-                if (found)
-                {
-                    // found so lastPosition is correct
-                    // but position is just after the delimiter (either close
-                    // delimiter or simple one)
-                    // so go back of delimiter size
-                    try
-                    {
-                        this.currentAttribute.AddContent(
-                            this.undecodedChunk.Copy(readerIndex, lastPosition - readerIndex), true);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new ErrorDataDecoderException(e);
-                    }
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-                }
-                else
-                {
-                    try
-                    {
-                        this.currentAttribute.AddContent(
-                            this.undecodedChunk.Copy(readerIndex, lastPosition - readerIndex), false);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new ErrorDataDecoderException(e);
-                    }
-                    this.undecodedChunk.SetReaderIndex(lastPosition);
-
-                    throw new NotEnoughDataDecoderException(nameof(HttpPostMultipartRequestDecoder));
+                    case HttpConstants.Colon:
+                    case HttpConstants.Comma:
+                    case HttpConstants.EqualsSign:
+                    case HttpConstants.Semicolon:
+                    case HttpConstants.HorizontalTab:
+                        sb.Append(HttpConstants.HorizontalSpaceChar);
+                        break;
+                    case HttpConstants.DoubleQuote:
+                        // nothing added, just removes it
+                        break;
+                    default:
+                        sb.Append(nextChar);
+                        break;
                 }
             }
-            catch (IndexOutOfRangeException e)
-            {
-                this.undecodedChunk.SetReaderIndex(readerIndex);
-                throw new NotEnoughDataDecoderException(e);
-            }
-        }
-
-        static ICharSequence CleanString(IEnumerable<char> field)
-        {
-            var sb = new StringBuilderCharSequence();
-            foreach (char nextChar in field)
-            {
-                if (nextChar == HttpConstants.Colon)
-                {
-                    sb.Append(HttpConstants.HorizontalSpaceChar);
-                }
-                else if (nextChar == HttpConstants.Comma)
-                {
-                    sb.Append(HttpConstants.HorizontalSpaceChar);
-                }
-                else if (nextChar == HttpConstants.EqualsSign)
-                {
-                    sb.Append(HttpConstants.HorizontalSpaceChar);
-                }
-                else if (nextChar == HttpConstants.Semicolon)
-                {
-                    sb.Append(HttpConstants.HorizontalSpaceChar);
-                }
-                else if (nextChar == HttpConstants.HorizontalTab)
-                {
-                    sb.Append(HttpConstants.HorizontalSpaceChar);
-                }
-                else if (nextChar == HttpConstants.DoubleQuote)
-                {
-                    // nothing added, just removes it
-                }
-                else
-                {
-                    sb.Append(nextChar);
-                }
-            }
-
             return CharUtil.Trim(sb);
         }
 
@@ -1952,7 +1412,6 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 return false;
             }
-
             byte nextByte = this.undecodedChunk.ReadByte();
             if (nextByte == HttpConstants.CarriageReturn)
             {
@@ -1976,39 +1435,37 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 return true;
             }
-
             this.undecodedChunk.SetReaderIndex(this.undecodedChunk.ReaderIndex - 1);
             return false;
         }
 
-        static ICharSequence[] SplitMultipartHeader(string sb)
+
+        static ICharSequence[] SplitMultipartHeader(ICharSequence sb)
         {
-            var sequence = new StringCharSequence(sb);
             var headers = new List<ICharSequence>(1);
             int nameEnd;
             int colonEnd;
-            int nameStart = HttpPostBodyUtil.FindNonWhitespace(sequence, 0);
-            for (nameEnd = nameStart; nameEnd < sequence.Count; nameEnd++)
+            int nameStart = HttpPostBodyUtil.FindNonWhitespace(sb, 0);
+            for (nameEnd = nameStart; nameEnd < sb.Count; nameEnd++)
             {
-                char ch = sequence[nameEnd];
+                char ch = sb[nameEnd];
                 if (ch == ':' || char.IsWhiteSpace(ch))
                 {
                     break;
                 }
             }
-            for (colonEnd = nameEnd; colonEnd < sequence.Count; colonEnd++)
+            for (colonEnd = nameEnd; colonEnd < sb.Count; colonEnd++)
             {
-                if (sequence[colonEnd] == ':')
+                if (sb[colonEnd] == ':')
                 {
                     colonEnd++;
                     break;
                 }
             }
-
-            int valueStart = HttpPostBodyUtil.FindNonWhitespace(sequence, colonEnd);
-            int valueEnd = HttpPostBodyUtil.FindEndOfString(sequence);
-            headers.Add(sequence.SubSequence(nameStart, nameEnd));
-            ICharSequence svalue = sequence.SubSequence(valueStart, valueEnd);
+            int valueStart = HttpPostBodyUtil.FindNonWhitespace(sb, colonEnd);
+            int valueEnd = HttpPostBodyUtil.FindEndOfString(sb);
+            headers.Add(sb.SubSequence(nameStart, nameEnd));
+            ICharSequence svalue = sb.SubSequence(valueStart, valueEnd);
             ICharSequence[] values;
             if (svalue.IndexOf(';') >= 0)
             {
@@ -2018,24 +1475,27 @@ namespace DotNetty.Codecs.Http.Multipart
             {
                 values = CharUtil.Split(svalue, ',');
             }
-
-            foreach (ICharSequence value in values)
+            foreach(ICharSequence value in values)
             {
                 headers.Add(CharUtil.Trim(value));
             }
-
-            return headers.ToArray();
+            var array = new ICharSequence[headers.Count];
+            for (int i = 0; i < headers.Count; i++)
+            {
+                array[i] = headers[i];
+            }
+            return array;
         }
 
-        static ICharSequence[] SplitMultipartHeaderValues(ICharSequence sequence)
+        static ICharSequence[] SplitMultipartHeaderValues(ICharSequence svalue)
         {
             List<ICharSequence> values = InternalThreadLocalMap.Get().CharSequenceList(1);
             bool inQuote = false;
             bool escapeNext = false;
             int start = 0;
-            for (int i = 0; i < sequence.Count; i++)
+            for (int i = 0; i < svalue.Count; i++)
             {
-                char c = sequence[i];
+                char c = svalue[i];
                 if (inQuote)
                 {
                     if (escapeNext)
@@ -2062,13 +1522,12 @@ namespace DotNetty.Codecs.Http.Multipart
                     }
                     else if (c == ';')
                     {
-                        values.Add(sequence.SubSequence(start, i));
+                        values.Add(svalue.SubSequence(start, i));
                         start = i + 1;
                     }
                 }
             }
-
-            values.Add(sequence.SubSequence(start, sequence.Count));
+            values.Add(svalue.SubSequence(start));
             return values.ToArray();
         }
     }

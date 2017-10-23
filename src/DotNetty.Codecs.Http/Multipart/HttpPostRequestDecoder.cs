@@ -8,11 +8,11 @@ namespace DotNetty.Codecs.Http.Multipart
     using System.Text;
     using DotNetty.Common.Utilities;
 
-    public class HttpPostRequestDecoder : IHttpPostRequestDecoder
+    public class HttpPostRequestDecoder : IInterfaceHttpPostRequestDecoder
     {
         internal static readonly int DefaultDiscardThreshold = 10 * 1024 * 1024;
 
-        readonly IHttpPostRequestDecoder decoder;
+        readonly IInterfaceHttpPostRequestDecoder decoder;
 
         public HttpPostRequestDecoder(IHttpRequest request)
             : this(new DefaultHttpDataFactory(DefaultHttpDataFactory.MinSize), request, HttpConstants.DefaultEncoding)
