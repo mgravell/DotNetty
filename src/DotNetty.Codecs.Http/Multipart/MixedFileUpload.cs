@@ -170,15 +170,11 @@ namespace DotNetty.Codecs.Http.Multipart
             this.fileUpload.SetContent(inputStream);
         }
 
-        //TODO
-
-
-
-
         public HttpDataType DataType => this.fileUpload.DataType;
 
         public string Name => this.fileUpload.Name;
 
+        // ReSharper disable once NonReadonlyMemberInGetHashCode
         public override int GetHashCode() => this.fileUpload.GetHashCode();
 
         public override bool Equals(object obj) => this.fileUpload.Equals(obj);
@@ -189,7 +185,7 @@ namespace DotNetty.Codecs.Http.Multipart
 
         public IByteBuffer GetChunk(int length) => this.fileUpload.GetChunk(length);
 
-        public FileStream GetFileStream() => this.fileUpload.GetFileStream();
+        public FileStream GetFile() => this.fileUpload.GetFile();
 
         public IByteBufferHolder Copy() => this.fileUpload.Copy();
 

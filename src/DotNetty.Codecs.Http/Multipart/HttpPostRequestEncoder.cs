@@ -167,7 +167,7 @@ namespace DotNetty.Codecs.Http.Multipart
             }
             if (!isText)
             {
-                contentTransferEncoding = TransferEncodingMechanism.Binary.Value;
+                contentTransferEncoding = HttpPostBodyUtil.TransferEncodingMechanism.Binary.Value;
             }
 
             IFileUpload fileUpload = this.factory.CreateFileUpload(this.request, name, fileName, scontentType, 
@@ -481,11 +481,11 @@ namespace DotNetty.Codecs.Http.Multipart
                 // Content-Type: text/plain; charset=ISO-8859-1
                 // Content-Transfer-Encoding: binary
                 internalAttribute.AddValue($"{HttpHeaderNames.ContentType}: {fileUpload.ContentType}");
-                string contentTransferEncoding = fileUpload.TransferEncoding;
+                string contentTransferEncoding = fileUpload.ContentTransferEncoding;
                 if (contentTransferEncoding != null
-                    && contentTransferEncoding.Equals(TransferEncodingMechanism.Binary.Value))
+                    && contentTransferEncoding.Equals(HttpPostBodyUtil.TransferEncodingMechanism.Binary.Value))
                 {
-                    internalAttribute.AddValue($"\r\n{HttpHeaderNames.ContentTransferEncoding}: {TransferEncodingMechanism.Binary.Value}\r\n\r\n");
+                    internalAttribute.AddValue($"\r\n{HttpHeaderNames.ContentTransferEncoding}: {HttpPostBodyUtil.TransferEncodingMechanism.Binary.Value}\r\n\r\n");
                 }
                 else if (fileUpload.Charset != null)
                 {

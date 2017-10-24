@@ -239,8 +239,6 @@ namespace DotNetty.Codecs.Http.Multipart
         {
             int firstpos = this.undecodedChunk.ReaderIndex;
             int currentpos = firstpos;
-            int equalpos;
-            int ampersandpos;
             if (this.currentStatus == MultiPartStatus.Notstarted)
             {
                 this.currentStatus = MultiPartStatus.Disposition;
@@ -248,6 +246,7 @@ namespace DotNetty.Codecs.Http.Multipart
             bool contRead = true;
             try
             {
+                int ampersandpos;
                 while (this.undecodedChunk.IsReadable() && contRead)
                 {
                     char read = (char)this.undecodedChunk.ReadByte();
@@ -258,7 +257,7 @@ namespace DotNetty.Codecs.Http.Multipart
                             if (read == '=')
                             {
                                 this.currentStatus = MultiPartStatus.Field;
-                                equalpos = currentpos - 1;
+                                int equalpos = currentpos - 1;
                                 string key = DecodeAttribute(this.undecodedChunk.ToString(firstpos, equalpos - firstpos, this.charset),
                                         this.charset);
                                 this.currentAttribute = this.factory.CreateAttribute(this.request, key);
@@ -385,8 +384,6 @@ namespace DotNetty.Codecs.Http.Multipart
             var sao = new HttpPostBodyUtil.SeekAheadOptimize(this.undecodedChunk);
             int firstpos = this.undecodedChunk.ReaderIndex;
             int currentpos = firstpos;
-            int equalpos;
-            int ampersandpos;
             if (this.currentStatus == MultiPartStatus.Notstarted)
             {
                 this.currentStatus = MultiPartStatus.Disposition;
@@ -395,6 +392,7 @@ namespace DotNetty.Codecs.Http.Multipart
             try
             {
                 //loop:
+                int ampersandpos;
                 while (sao.Pos < sao.Limit)
                 {
                     char read = (char)(sao.Bytes[sao.Pos++]);
@@ -405,7 +403,7 @@ namespace DotNetty.Codecs.Http.Multipart
                             if (read == '=')
                             {
                                 this.currentStatus = MultiPartStatus.Field;
-                                equalpos = currentpos - 1;
+                                int equalpos = currentpos - 1;
                                 string key = DecodeAttribute(this.undecodedChunk.ToString(firstpos, equalpos - firstpos, this.charset),
                                         this.charset);
                                 this.currentAttribute = this.factory.CreateAttribute(this.request, key);
