@@ -338,30 +338,27 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
         static string GetRequestBody(HttpPostRequestEncoder encoder)
         {
             encoder.FinalizeRequest();
-            LinkedList<IPostHttpData> chunks = encoder.MultipartList;
 
-            var buffers = new List<IByteBuffer>();
-            LinkedListNode<IPostHttpData> node = chunks.First;
-            while (node != null)
+            List<IInterfaceHttpData> chunks = encoder.MultipartHttpDatas;
+            var buffers = new IByteBuffer[chunks.Count];
+
+            for (int i = 0; i < buffers.Length; i++)
             {
-                IPostHttpData data = node.Value;
+                IInterfaceHttpData data = chunks[i];
                 if (data is InternalAttribute attribute)
                 {
-                    buffers.Add(attribute.ToByteBuffer());
+                    buffers[i] = attribute.ToByteBuffer();
                 }
-                else if (data is IHttpData)
+                else if (data is IHttpData httpData)
                 {
-                    buffers.Add(((IHttpData)data).GetByteBuffer());
+                    buffers[i] = httpData.GetByteBuffer();
                 }
-
-                node = node.Next;
             }
 
-            IByteBuffer content = Unpooled.WrappedBuffer(buffers.ToArray());
-            string result = content.ToString(Encoding.UTF8);
+            IByteBuffer content = Unpooled.WrappedBuffer(buffers);
+            string contentStr = content.ToString(Encoding.UTF8);
             content.Release();
-
-            return result;
+            return contentStr;
         }
 
         [Fact]

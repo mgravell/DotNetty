@@ -57,7 +57,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
                 Assert.True(decoder.HasNext);
 
                 // Decode binary upload.
-                IPostHttpData next = decoder.Next();
+                IInterfaceHttpData next = decoder.Next();
                 Assert.IsType<MemoryFileUpload>(next);
                 var upload = (MemoryFileUpload)next;
 
@@ -98,7 +98,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
 
             // Create decoder instance to test.
             var decoder = new HttpPostRequestDecoder(inMemoryFactory, req);
-            List<IPostHttpData> list = decoder.GetBodyDataList();
+            List<IInterfaceHttpData> list = decoder.GetBodyHttpDatas();
             Assert.NotNull(list);
             Assert.False(list.Count == 0);
             decoder.Destroy();
@@ -141,12 +141,12 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
                 req.Content.WriteBytes(Encoding.UTF8.GetBytes(body));
                 // Create decoder instance to test.
                 var decoder = new HttpPostRequestDecoder(inMemoryFactory, req);
-                List<IPostHttpData> list = decoder.GetBodyDataList();
+                List<IInterfaceHttpData> list = decoder.GetBodyHttpDatas();
                 Assert.NotNull(list);
                 Assert.False(list.Count == 0);
 
                 // Check correctness: data size
-                IPostHttpData httpData = decoder.GetBodyData(new AsciiString($"file{i}"));
+                IInterfaceHttpData httpData = decoder.GetBodyHttpData(new AsciiString($"file{i}"));
                 Assert.NotNull(httpData);
                 var attribute = httpData as IAttribute;
                 Assert.NotNull(attribute);
@@ -190,7 +190,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
 
             // Create decoder instance to test.
             var decoder = new HttpPostRequestDecoder(inMemoryFactory, req);
-            List<IPostHttpData> list = decoder.GetBodyDataList();
+            List<IInterfaceHttpData> list = decoder.GetBodyHttpDatas();
             Assert.NotNull(list);
             Assert.False(list.Count == 0);
             decoder.Destroy();
@@ -236,7 +236,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             aDecoder.Offer(EmptyLastHttpContent.Default);
 
             Assert.True(aDecoder.HasNext);
-            IPostHttpData aDecodedData = aDecoder.Next();
+            IInterfaceHttpData aDecodedData = aDecoder.Next();
             Assert.Equal(HttpDataType.Attribute, aDecodedData.DataType);
 
             var aAttr = (IAttribute)aDecodedData;
@@ -323,7 +323,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
 
             req.Content.WriteBytes(Encoding.UTF8.GetBytes(Body));
             var decoder = new HttpPostRequestDecoder(inMemoryFactory, req);
-            List<IPostHttpData> list = decoder.GetBodyDataList();
+            List<IInterfaceHttpData> list = decoder.GetBodyHttpDatas();
             Assert.NotNull(list);
             Assert.False(list.Count == 0);
             decoder.Destroy();
@@ -349,11 +349,11 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
 
             req.Content.WriteBytes(Encoding.UTF8.GetBytes(Body));
             var decoder = new HttpPostRequestDecoder(inMemoryFactory, req);
-            List<IPostHttpData> list = decoder.GetBodyDataList();
+            List<IInterfaceHttpData> list = decoder.GetBodyHttpDatas();
             Assert.NotNull(list);
             Assert.False(list.Count == 0);
 
-            IPostHttpData part1 = list[0];
+            IInterfaceHttpData part1 = list[0];
             Assert.IsAssignableFrom<IFileUpload>(part1);
             var fileUpload = (IFileUpload)part1;
             Assert.Equal("tmp 0.txt", fileUpload.FileName);
@@ -388,7 +388,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
 
             // Create decoder instance to test without any exception.
             var decoder = new HttpPostRequestDecoder(inMemoryFactory, req);
-            List<IPostHttpData> list = decoder.GetBodyDataList();
+            List<IInterfaceHttpData> list = decoder.GetBodyHttpDatas();
             Assert.NotNull(list);
             Assert.False(list.Count == 0);
             decoder.Destroy();

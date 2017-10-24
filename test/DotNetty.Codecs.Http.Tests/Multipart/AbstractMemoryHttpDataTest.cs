@@ -51,7 +51,7 @@ namespace DotNetty.Codecs.Http.Tests.Multipart
             {
             }
 
-            public override int CompareTo(IPostHttpData other)
+            public override int CompareTo(IInterfaceHttpData other)
             {
                 throw new NotSupportedException("Should never be called.");
             }

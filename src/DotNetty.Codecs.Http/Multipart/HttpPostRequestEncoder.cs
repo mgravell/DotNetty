@@ -41,7 +41,7 @@ namespace DotNetty.Codecs.Http.Multipart
         readonly Encoding charset;
         bool isChunked;
         readonly List<IInterfaceHttpData> bodyListDatas;
-        readonly List<IInterfaceHttpData> multipartHttpDatas;
+        internal readonly List<IInterfaceHttpData> MultipartHttpDatas;
         readonly bool isMultipart;
         internal string MultipartDataBoundary;
         internal string MultipartMixedBoundary;
@@ -81,7 +81,7 @@ namespace DotNetty.Codecs.Http.Multipart
             this.isLastChunk = false;
             this.isLastChunkSent = false;
             this.isMultipart = multipart;
-            this.multipartHttpDatas = new List<IInterfaceHttpData>();
+            this.MultipartHttpDatas = new List<IInterfaceHttpData>();
             this.encoderMode = encoderMode;
             if (this.isMultipart)
             {
@@ -128,7 +128,7 @@ namespace DotNetty.Codecs.Http.Multipart
             this.bodyListDatas.Clear();
             this.currentFileUpload = null;
             this.duringMixedMode = false;
-            this.multipartHttpDatas.Clear();
+            this.MultipartHttpDatas.Clear();
             foreach (IInterfaceHttpData data in list)
             {
                 this.AddBodyHttpData(data);
@@ -215,7 +215,7 @@ namespace DotNetty.Codecs.Http.Multipart
                         string key = this.EncodeAttribute(attribute.Name, this.charset);
                         string value = this.EncodeAttribute(attribute.Value, this.charset);
                         IAttribute newattribute = this.factory.CreateAttribute(this.request, key, value);
-                        this.multipartHttpDatas.Add(newattribute);
+                        this.MultipartHttpDatas.Add(newattribute);
                         this.globalBodySize += newattribute.Name.Length + 1 + newattribute.Length + 1;
                     }
                     catch (IOException e)
@@ -230,7 +230,7 @@ namespace DotNetty.Codecs.Http.Multipart
                     string key = this.EncodeAttribute(fileUpload.Name, this.charset);
                     string value = this.EncodeAttribute(fileUpload.FileName, this.charset);
                     IAttribute newattribute = this.factory.CreateAttribute(this.request, key, value);
-                    this.multipartHttpDatas.Add(newattribute);
+                    this.MultipartHttpDatas.Add(newattribute);
                     this.globalBodySize += newattribute.Name.Length + 1 + newattribute.Length + 1;
                 }
                 return;
@@ -275,13 +275,13 @@ namespace DotNetty.Codecs.Http.Multipart
                 {
                     internalAttribute = new InternalAttribute(this.charset);
                     internalAttribute.AddValue($"\r\n--{this.MultipartMixedBoundary}--");
-                    this.multipartHttpDatas.Add(internalAttribute);
+                    this.MultipartHttpDatas.Add(internalAttribute);
                     this.MultipartMixedBoundary = null;
                     this.currentFileUpload = null;
                     this.duringMixedMode = false;
                 }
                 internalAttribute = new InternalAttribute(this.charset);
-                if (this.multipartHttpDatas.Count > 0)
+                if (this.MultipartHttpDatas.Count > 0)
                 {
                     // previously a data field so CRLF
                     internalAttribute.AddValue("\r\n");
@@ -300,14 +300,14 @@ namespace DotNetty.Codecs.Http.Multipart
                 }
                 // CRLF between body header and data
                 internalAttribute.AddValue("\r\n");
-                this.multipartHttpDatas.Add(internalAttribute);
-                this.multipartHttpDatas.Add(data);
+                this.MultipartHttpDatas.Add(internalAttribute);
+                this.MultipartHttpDatas.Add(data);
                 this.globalBodySize += attribute.Length + internalAttribute.Size;
             }
             else if (data is IFileUpload fileUpload)
             {
                 var internalAttribute = new InternalAttribute(this.charset);
-                if (this.multipartHttpDatas.Count > 0)
+                if (this.MultipartHttpDatas.Count > 0)
                 {
                     // previously a data field so CRLF
                     internalAttribute.AddValue("\r\n");
@@ -330,7 +330,7 @@ namespace DotNetty.Codecs.Http.Multipart
                         // and
                         // Data to multipart list
                         internalAttribute.AddValue($"--{this.MultipartMixedBoundary}--");
-                        this.multipartHttpDatas.Add(internalAttribute);
+                        this.MultipartHttpDatas.Add(internalAttribute);
                         this.MultipartMixedBoundary = null;
                         // start a new one (could be replaced if mixed start again
                         // from here
@@ -370,7 +370,7 @@ namespace DotNetty.Codecs.Http.Multipart
                         // Content-Type: text/plain
 
                         this.InitMixedMultipart();
-                        var pastAttribute = (InternalAttribute)this.multipartHttpDatas[this.multipartHttpDatas.Count - 2];
+                        var pastAttribute = (InternalAttribute)this.MultipartHttpDatas[this.MultipartHttpDatas.Count - 2];
                         // remove past size
                         this.globalBodySize -= pastAttribute.Size;
                         StringBuilder replacement = new StringBuilder(139
@@ -495,8 +495,8 @@ namespace DotNetty.Codecs.Http.Multipart
                 {
                     internalAttribute.AddValue("\r\n\r\n");
                 }
-                this.multipartHttpDatas.Add(internalAttribute);
-                this.multipartHttpDatas.Add(data);
+                this.MultipartHttpDatas.Add(internalAttribute);
+                this.MultipartHttpDatas.Add(data);
                 this.globalBodySize += fileUpload.Length + internalAttribute.Size;
             }
         }
@@ -517,7 +517,7 @@ namespace DotNetty.Codecs.Http.Multipart
                     }
 
                     attribute.AddValue($"\r\n--{this.MultipartDataBoundary}--\r\n");
-                    this.multipartHttpDatas.Add(attribute);
+                    this.MultipartHttpDatas.Add(attribute);
                     this.MultipartMixedBoundary = null;
                     this.currentFileUpload = null;
                     this.duringMixedMode = false;
@@ -566,12 +566,12 @@ namespace DotNetty.Codecs.Http.Multipart
             long realSize = this.globalBodySize;
             if (this.isMultipart)
             {
-                this.iterator = new ListIterator(this.multipartHttpDatas);
+                this.iterator = new ListIterator(this.MultipartHttpDatas);
             }
             else 
             { 
                 realSize -= 1; // last '&' removed
-                this.iterator = new ListIterator(this.multipartHttpDatas);
+                this.iterator = new ListIterator(this.MultipartHttpDatas);
             }
 
             headers.Set(HttpHeaderNames.ContentLength, Convert.ToString(realSize));
