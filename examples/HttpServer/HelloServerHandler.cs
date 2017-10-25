@@ -56,6 +56,12 @@ namespace HttpServer
                     byte[] json = Encoding.UTF8.GetBytes(NewMessage().ToJsonFormat());
                     this.WriteResponse(ctx, Unpooled.WrappedBuffer(json), TypeJson, JsonClheaderValue);
                     break;
+                case "/echo":
+                    var buf = ((IByteBufferHolder)request).Content;
+                    buf.Retain();
+                    this.WriteResponse(ctx, buf, TypePlain, new AsciiString(buf.ReadableBytes.ToString()));
+                    //this.WriteResponse(ctx, PlaintextContentBuffer.Duplicate(), TypeJson, JsonClheaderValue);
+                    break;
                 default:
                     var response = new DefaultFullHttpResponse(HttpVersion.Http11, HttpResponseStatus.NotFound, Unpooled.Empty, false);
                     ctx.WriteAndFlushAsync(response);
