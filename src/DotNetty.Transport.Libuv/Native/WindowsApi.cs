@@ -3,11 +3,13 @@
 
 // ReSharper disable InconsistentNaming
 // ReSharper disable RedundantAssignment
+// ReSharper disable NotAccessedVariable
 #pragma warning disable 414
 #pragma warning disable 169
 namespace DotNetty.Transport.Libuv.Native
 {
     using System;
+    using System.Net.Sockets;
     using System.Runtime.InteropServices;
 
     //https://github.com/aspnet/KestrelHttpServer/blob/dev/src/Microsoft.AspNetCore.Server.Kestrel.Transport.Libuv/Internal/ListenerPrimary.cs
@@ -19,7 +21,7 @@ namespace DotNetty.Transport.Libuv.Native
         public WindowsApi()
         {
             var fileCompletionInfo = new FILE_COMPLETION_INFORMATION { Key = IntPtr.Zero, Port = IntPtr.Zero };
-            this.fileCompletionInfoPtr = Marshal.AllocHGlobal(Marshal.SizeOf(fileCompletionInfo));
+            this.fileCompletionInfoPtr = NativeMethods.Allocate(Marshal.SizeOf(fileCompletionInfo));
             Marshal.StructureToPtr(fileCompletionInfo, this.fileCompletionInfoPtr, false);
         }
 
@@ -66,16 +68,29 @@ namespace DotNetty.Transport.Libuv.Native
         }
 
         [DllImport("NtDll.dll")]
-        static extern uint NtSetInformationFile(IntPtr FileHandle,
-            out IO_STATUS_BLOCK IoStatusBlock, IntPtr FileInformation, uint Length,
-            int FileInformationClass);
+        static extern uint NtSetInformationFile(IntPtr FileHandle, out IO_STATUS_BLOCK IoStatusBlock, IntPtr FileInformation, uint Length, int FileInformationClass);
+
+        [DllImport("ws2_32.dll", SetLastError = true)]
+        static extern SocketError setsockopt(IntPtr socketHandle, int level, int optionName, ref int optionValue, uint optionLength);
+
+        internal static void ReuseAddress(NativeHandle handle, bool value)
+        {
+            IntPtr socket = IntPtr.Zero;
+            NativeMethods.uv_fileno(handle.Handle, ref socket);
+            int optionValue = value ? 1 : 0;
+            SocketError status = setsockopt(socket, (int)SocketOptionLevel.Socket, (int)SocketOptionName.ReuseAddress, ref optionValue, 4);
+            if (status == SocketError.SocketError)
+            {
+                throw new SocketException(Marshal.GetLastWin32Error());
+            }
+        }
 
         public void Dispose()
         {
             IntPtr handle = this.fileCompletionInfoPtr;
             if (handle != IntPtr.Zero)
             {
-                Marshal.FreeHGlobal(handle);
+                NativeMethods.FreeMemory(handle);
             }
             this.fileCompletionInfoPtr = IntPtr.Zero;
         }

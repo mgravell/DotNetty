@@ -3,36 +3,48 @@
 
 namespace DotNetty.Transport.Libuv
 {
+    using System.Runtime.InteropServices;
     using DotNetty.Transport.Channels;
     using DotNetty.Transport.Libuv.Native;
 
     sealed class TcpChannelConfig : DefaultChannelConfiguration
     {
+        bool reuseAddress;
+        int receiveBufferSize;
+        int sendBufferSize;
+        bool noDelay;
+        bool keepAlive;
+
         public TcpChannelConfig(TcpChannel channel) : base(channel)
         {
+            this.reuseAddress = true;  // SO_REUSEADDR by default
+            this.receiveBufferSize = 0;
+            this.sendBufferSize = 0;
+            this.noDelay = true; // TCP_NODELAY by default
+            this.keepAlive = false;
         }
 
         public override T GetOption<T>(ChannelOption<T> option)
         {
             if (ChannelOption.SoRcvbuf.Equals(option))
             {
-                return (T)(object)this.ReceiveBufferSize;
+                return (T)(object)this.receiveBufferSize;
             }
             if (ChannelOption.SoSndbuf.Equals(option))
             {
-                return (T)(object)this.SendBufferSize;
+                return (T)(object)this.sendBufferSize;
             }
             if (ChannelOption.TcpNodelay.Equals(option))
             {
-                return (T)(object)this.TcpNoDelay;
+                return (T)(object)this.noDelay;
             }
             if (ChannelOption.SoKeepalive.Equals(option))
             {
-                return (T)(object)this.KeepAlive;
+                return (T)(object)this.keepAlive;
             }
             if (ChannelOption.SoReuseaddr.Equals(option))
             {
-                return (T)(object)this.ReuseAddress;
+                return (T)(object)this.reuseAddress;
             }
 
             return base.GetOption(option);
@@ -47,23 +59,23 @@ namespace DotNetty.Transport.Libuv
 
             if (ChannelOption.SoRcvbuf.Equals(option))
             {
-                this.ReceiveBufferSize = (int)(object)value;
+                this.receiveBufferSize = (int)(object)value;
             }
             else if (ChannelOption.SoSndbuf.Equals(option))
             {
-                this.SendBufferSize = (int)(object)value;
+                this.sendBufferSize = (int)(object)value;
             }
             else if (ChannelOption.TcpNodelay.Equals(option))
             {
-                this.TcpNoDelay = (bool)(object)value;
+                this.noDelay = (bool)(object)value;
             }
             else if (ChannelOption.SoKeepalive.Equals(option))
             {
-                this.KeepAlive = (bool)(object)value;
+                this.keepAlive = (bool)(object)value;
             }
             else if (ChannelOption.SoReuseaddr.Equals(option))
             {
-                this.ReuseAddress = (bool)(object)value;
+                this.reuseAddress = (bool)(object)value;
             }
             else
             {
@@ -73,33 +85,34 @@ namespace DotNetty.Transport.Libuv
             return true;
         }
 
-        public int ReceiveBufferSize { get; private set; }
-
-        public int SendBufferSize { get; private set; }
-
-        public bool TcpNoDelay { get; private set; } = true;
-
-        public bool KeepAlive { get; private set; }
-
-        public bool ReuseAddress { get; private set; }
-
         internal void SetOptions(Tcp tcp)
         {
-            if (this.TcpNoDelay)
+            if (this.receiveBufferSize > 0)
             {
-                tcp.NoDelay(this.TcpNoDelay);
+                tcp.ReceiveBufferSize(this.receiveBufferSize);
             }
-            if (this.ReceiveBufferSize > 0)
+            if (this.sendBufferSize > 0)
             {
-                tcp.ReceiveBufferSize(this.ReceiveBufferSize);
+                tcp.SendBufferSize(this.sendBufferSize);
             }
-            if (this.SendBufferSize > 0)
+            if (this.noDelay)
             {
-                tcp.SendBufferSize(this.SendBufferSize);
+                tcp.NoDelay(this.noDelay);
             }
-            if (this.KeepAlive)
+            if (this.keepAlive)
             {
                 tcp.KeepAlive(true, 1 /* Delay in seconds */);
+            }
+            if (this.reuseAddress)
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    WindowsApi.ReuseAddress(tcp, this.reuseAddress);
+                }
+                else
+                {
+                    UnixApi.ReuseAddress(tcp, this.reuseAddress);
+                }
             }
         }
     }

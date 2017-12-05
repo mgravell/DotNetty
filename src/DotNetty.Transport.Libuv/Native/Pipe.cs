@@ -4,7 +4,7 @@
 namespace DotNetty.Transport.Libuv.Native
 {
     using System;
-    using System.Diagnostics.Contracts;
+    using System.Diagnostics;
     using System.Runtime.InteropServices;
     using System.Text;
 
@@ -30,11 +30,7 @@ namespace DotNetty.Transport.Libuv.Native
             this.Validate();
 
             int result = NativeMethods.uv_read_start(this.Handle, AllocateCallback, ReadCallback);
-            if (result < 0)
-            {
-                throw NativeMethods.CreateError((uv_err_code)result);
-            }
-
+            NativeMethods.ThrowIfError(result);
             this.readCallback = readAction;
         }
 
@@ -47,10 +43,7 @@ namespace DotNetty.Transport.Libuv.Native
 
             // This function is idempotent and may be safely called on a stopped stream.
             int result = NativeMethods.uv_read_stop(this.Handle);
-            if (result < 0)
-            {
-                throw NativeMethods.CreateError((uv_err_code)result);
-            }
+            NativeMethods.ThrowIfError(result);
         }
 
         void OnReadCallback(int status)
@@ -79,10 +72,7 @@ namespace DotNetty.Transport.Libuv.Native
                 }
 
                 int result = NativeMethods.uv_accept(this.Handle, client.Handle);
-                if (result < 0)
-                {
-                    throw NativeMethods.CreateError((uv_err_code)result);
-                }
+                NativeMethods.ThrowIfError(result);
             }
 
             return client;
@@ -90,11 +80,9 @@ namespace DotNetty.Transport.Libuv.Native
 
         internal void Send(NativeHandle serverHandle)
         {
-            Contract.Requires(serverHandle != null);
+            Debug.Assert(serverHandle != null);
 
             var ping = new Ping(serverHandle);
-
-            // Send the server handle once client is connected
             uv_buf_t[] bufs = ping.Bufs;
             int result = NativeMethods.uv_write2(
                 ping.Handle,
@@ -107,7 +95,7 @@ namespace DotNetty.Transport.Libuv.Native
             if (result < 0)
             {
                 ping.Dispose();
-                throw NativeMethods.CreateError((uv_err_code)result);
+                NativeMethods.ThrowOperationException((uv_err_code)result);
             }
         }
 
@@ -137,13 +125,13 @@ namespace DotNetty.Transport.Libuv.Native
         sealed class Scratch : IDisposable
         {
             static readonly byte[] ScratchBuf = new byte[64];
-            GCHandle array;
+            GCHandle gcHandle;
 
             public Scratch()
             {
                 byte[] scratch = ScratchBuf;
-                this.array = GCHandle.Alloc(scratch, GCHandleType.Pinned);
-                IntPtr arrayHandle = this.array.AddrOfPinnedObject();
+                this.gcHandle = GCHandle.Alloc(scratch, GCHandleType.Pinned);
+                IntPtr arrayHandle = this.gcHandle.AddrOfPinnedObject();
                 this.Buf = new uv_buf_t(arrayHandle, scratch.Length);
             }
 
@@ -151,9 +139,9 @@ namespace DotNetty.Transport.Libuv.Native
 
             public void Dispose()
             {
-                if (this.array.IsAllocated)
+                if (this.gcHandle.IsAllocated)
                 {
-                    this.array.Free();
+                    this.gcHandle.Free();
                 }
             }
         }
@@ -205,7 +193,6 @@ namespace DotNetty.Transport.Libuv.Native
                 {
                     this.gcHandle.Free();
                 }
-
                 base.Dispose(disposing);
             }
         }
