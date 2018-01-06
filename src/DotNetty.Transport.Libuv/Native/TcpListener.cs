@@ -4,7 +4,7 @@
 namespace DotNetty.Transport.Libuv.Native
 {
     using System;
-    using System.Diagnostics.Contracts;
+    using System.Diagnostics;
     using System.Net;
 
     sealed class TcpListener : TcpHandle
@@ -19,23 +19,20 @@ namespace DotNetty.Transport.Libuv.Native
 
         public void Listen(IPEndPoint endPoint, IServerNativeUnsafe channel, int backlog, bool dualStack = false)
         {
-            Contract.Requires(channel != null);
-            Contract.Requires(backlog > 0);
+            Debug.Assert(channel != null);
+            Debug.Assert(backlog > 0);
 
             this.Validate();
             NativeMethods.GetSocketAddress(endPoint, out sockaddr addr);
 
             int result = NativeMethods.uv_tcp_bind(this.Handle, ref addr, (uint)(dualStack ? 1 : 0));
-            if (result < 0)
-            {
-                throw NativeMethods.CreateError((uv_err_code)result);
-            }
+            NativeMethods.ThrowIfError(result);
+
+            // Set up tcp options right after bind where the socket is created by Libuv
+            channel.SetOptions(this);
 
             result = NativeMethods.uv_listen(this.Handle, backlog, ConnectionCallback);
-            if (result < 0)
-            {
-                throw NativeMethods.CreateError((uv_err_code)result);
-            }
+            NativeMethods.ThrowIfError(result);
 
             this.nativeUnsafe = channel;
         }
