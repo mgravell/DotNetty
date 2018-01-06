@@ -33,8 +33,8 @@ namespace HttpServer
             IEventLoopGroup workGroup;
             if (useLibuv)
             {
-                var dispatcherLoop = new DispatcherEventLoop();
-                group = new MultithreadEventLoopGroup(_ => dispatcherLoop, 1);
+                var dispatcherLoop = new DispatcherEventLoopGroup();
+                group = new MultithreadEventLoopGroup(1);
                 workGroup = new WorkerEventLoopGroup(dispatcherLoop);
             }
             else
