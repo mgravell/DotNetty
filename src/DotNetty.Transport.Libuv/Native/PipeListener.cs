@@ -59,9 +59,9 @@ namespace DotNetty.Transport.Libuv.Native
                 throw new InvalidOperationException("No pipe connections to dispatch handles.");
             }
 
-            int id = Interlocked.Increment(ref this.requestId);
-            Pipe pipe = this.pipes[Math.Abs(id % this.pipes.Count)];
-
+            // This is called within the loop, no need to atomically increase
+            this.requestId++;
+            Pipe pipe = this.pipes[Math.Abs(this.requestId % this.pipes.Count)];
             this.windowsApi.DetachFromIOCP(handle);
             pipe.Send(handle);
         }

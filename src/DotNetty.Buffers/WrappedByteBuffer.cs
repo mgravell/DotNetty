@@ -210,6 +210,8 @@ namespace DotNetty.Buffers
             return this;
         }
 
+        public ICharSequence GetCharSequence(int index, int length, Encoding encoding) => this.Buf.GetCharSequence(index, length, encoding);
+
         public virtual IByteBuffer SetBoolean(int index, bool value)
         {
             this.Buf.SetBoolean(index, value);
@@ -346,6 +348,8 @@ namespace DotNetty.Buffers
             return this;
         }
 
+        public int SetCharSequence(int index, ICharSequence sequence, Encoding encoding) => this.Buf.SetCharSequence(index, sequence, encoding);
+
         public virtual bool ReadBoolean() => this.Buf.ReadBoolean();
 
         public virtual byte ReadByte() => this.Buf.ReadByte();
@@ -431,6 +435,8 @@ namespace DotNetty.Buffers
             this.Buf.ReadBytes(output, length);
             return this;
         }
+
+        public ICharSequence ReadCharSequence(int length, Encoding encoding) => this.Buf.ReadCharSequence(length, encoding);
 
         public virtual IByteBuffer SkipBytes(int length)
         {
@@ -569,6 +575,8 @@ namespace DotNetty.Buffers
             this.Buf.WriteZero(length);
             return this;
         }
+
+        public int WriteCharSequence(ICharSequence sequence, Encoding encoding) => this.Buf.WriteCharSequence(sequence, encoding);
 
         public virtual int IndexOf(int fromIndex, int toIndex, byte value) => this.Buf.IndexOf(fromIndex, toIndex, value);
 
