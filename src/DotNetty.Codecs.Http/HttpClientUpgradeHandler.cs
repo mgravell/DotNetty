@@ -9,6 +9,8 @@ namespace DotNetty.Codecs.Http
     using System.Diagnostics.Contracts;
     using System.Text;
     using System.Threading.Tasks;
+    using DotNetty.Common.Concurrency;
+    using DotNetty.Common.Internal.Logging;
     using DotNetty.Common.Utilities;
     using DotNetty.Transport.Channels;
 
@@ -57,6 +59,8 @@ namespace DotNetty.Codecs.Http
             //            has switched to this protocol.
             void UpgradeTo(IChannelHandlerContext ctx, IFullHttpResponse upgradeResponse);
         }
+        
+        internal static readonly IInternalLogger Logger = InternalLoggerFactory.GetInstance<HttpClientUpgradeHandler>();
 
         readonly ISourceCodec sourceCodec;
         readonly IUpgradeCodec upgradeCodec;
@@ -72,28 +76,29 @@ namespace DotNetty.Codecs.Http
             this.upgradeCodec = upgradeCodec;
         }
 
-        public override Task WriteAsync(IChannelHandlerContext context, object message)
+        public override void Write(IChannelHandlerContext context, object message, TaskCompletionSource promise)
         {
             if (!(message is IHttpRequest))
             {
-                return context.WriteAsync(message);
+                context.WriteAsync(message, promise);
+                return;
             }
 
             if (this.upgradeRequested)
             {
-                return TaskEx.FromException(new InvalidOperationException("Attempting to write HTTP request with upgrade in progress"));
+                Util.SafeSetFailure(promise, new InvalidOperationException("Attempting to write HTTP request with upgrade in progress"), Logger);
+                return;
             }
 
             this.upgradeRequested = true;
             this.SetUpgradeRequestHeaders(context, (IHttpRequest)message);
 
             // Continue writing the request.
-            Task task = context.WriteAsync(message);
+            context.WriteAsync(message, promise);
 
             // Notify that the upgrade request was issued.
             context.FireUserEventTriggered(UpgradeEvent.UpgradeIssued);
             // Now we wait for the next HTTP response to see if we switch protocols.
-            return task;
         }
 
         protected override void Decode(IChannelHandlerContext context, IHttpObject message, List<object> output)

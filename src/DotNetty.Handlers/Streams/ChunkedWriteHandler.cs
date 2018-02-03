@@ -39,11 +39,10 @@ namespace DotNetty.Handlers.Streams
             }
         }
 
-        public override Task WriteAsync(IChannelHandlerContext context, object message)
+        public override void Write(IChannelHandlerContext context, object message, TaskCompletionSource promise)
         {
-            var pendingWrite = new PendingWrite(message);
+            var pendingWrite = new PendingWrite(message, promise);
             this.queue.Enqueue(pendingWrite);
-            return pendingWrite.PendingTask;
         }
 
         public override void Flush(IChannelHandlerContext context) => this.DoFlush(context);
@@ -336,10 +335,10 @@ namespace DotNetty.Handlers.Streams
         {
             readonly TaskCompletionSource promise;
 
-            public PendingWrite(object msg)
+            public PendingWrite(object msg, TaskCompletionSource promise)
             {
                 this.Message = msg;
-                this.promise = new TaskCompletionSource();
+                this.promise = promise;
             }
 
             public object Message { get; }

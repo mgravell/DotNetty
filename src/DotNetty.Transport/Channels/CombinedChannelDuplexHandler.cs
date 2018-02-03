@@ -355,17 +355,17 @@ namespace DotNetty.Transport.Channels
             }
         }
 
-        public override Task WriteAsync(IChannelHandlerContext context, object message)
+        public void Write(IChannelHandlerContext context, object message, TaskCompletionSource promise)
         {
             Contract.Assert(context == this.outboundCtx.InnerContext);
 
             if (!this.outboundCtx.Removed)
             {
-                return this.OutboundHandler.WriteAsync(this.outboundCtx, message);
+                this.OutboundHandler.Write(this.outboundCtx, message, promise);
             }
             else
             {
-                return this.outboundCtx.WriteAsync(message);
+                this.outboundCtx.WriteAsync(message, promise);
             }
         }
 
@@ -493,6 +493,8 @@ namespace DotNetty.Transport.Channels
             }
 
             public Task WriteAsync(object message) => this.ctx.WriteAsync(message);
+            
+            public Task WriteAsync(object message, TaskCompletionSource promise) => this.ctx.WriteAsync(message, promise);
 
             public IChannelHandlerContext Flush()
             {
@@ -501,6 +503,8 @@ namespace DotNetty.Transport.Channels
             }
 
             public Task WriteAndFlushAsync(object message) => this.ctx.WriteAndFlushAsync(message);
+            
+            public Task WriteAndFlushAsync(object message, TaskCompletionSource promise) => this.ctx.WriteAndFlushAsync(message, promise);
 
             public IAttribute<T> GetAttribute<T>(AttributeKey<T> key) where T : class => this.ctx.GetAttribute(key);
 

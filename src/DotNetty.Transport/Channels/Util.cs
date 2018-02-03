@@ -8,7 +8,7 @@ namespace DotNetty.Transport.Channels
     using DotNetty.Common.Concurrency;
     using DotNetty.Common.Internal.Logging;
 
-    static class Util
+    public static class Util
     {
         static readonly IInternalLogger Log = InternalLoggerFactory.GetInstance<IChannel>();
 
