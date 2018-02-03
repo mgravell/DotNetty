@@ -2,19 +2,20 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using DotNetty.Buffers;
-using DotNetty.Codecs.Http2;
 
-public interface Http2LocalFlowController : Http2FlowController
+namespace DotNetty.Codecs.Http2
 {
-    /**
+ public interface Http2LocalFlowController : Http2FlowController
+ {
+  /**
      * Sets the writer to be use for sending {@code WINDOW_UPDATE} frames. This must be called before any flow
      * controlled data is received.
      *
      * @param frameWriter the HTTP/2 frame writer.
      */
-    Http2LocalFlowController frameWriter(Http2FrameWriter frameWriter);
+  Http2LocalFlowController frameWriter(Http2FrameWriter frameWriter);
 
-    /**
+  /**
      * Receives an inbound {@code DATA} frame from the remote endpoint and applies flow control policies to it for both
      * the {@code stream} as well as the connection. If any flow control policies have been violated, an exception is
      * raised immediately, otherwise the frame is considered to have "passed" flow control.
@@ -31,9 +32,9 @@ public interface Http2LocalFlowController : Http2FlowController
      * @param endOfStream Indicates whether this is the last frame to be sent from the remote endpoint for this stream.
      * @throws Http2Exception if any flow control errors are encountered.
      */
-    void receiveFlowControlledFrame(Http2Stream stream, IByteBuffer data, int padding, bool endOfStream);
+  void receiveFlowControlledFrame(Http2Stream stream, IByteBuffer data, int padding, bool endOfStream);
 
-    /**
+  /**
      * Indicates that the application has consumed a number of bytes for the given stream and is therefore ready to
      * receive more data from the remote endpoint. The application must consume any bytes that it receives or the flow
      * control window will collapse. Consuming bytes enables the flow controller to send {@code WINDOW_UPDATE} to
@@ -50,21 +51,22 @@ public interface Http2LocalFlowController : Http2FlowController
      * @throws Http2Exception if the number of bytes returned exceeds the {@link #unconsumedBytes(Http2Stream)} for the
      * stream.
      */
-    bool consumeBytes(Http2Stream stream, int numBytes);
+  bool consumeBytes(Http2Stream stream, int numBytes);
 
-    /**
+  /**
      * The number of bytes for the given stream that have been received but not yet consumed by the
      * application.
      *
      * @param stream the stream for which window space should be freed.
      * @return the number of unconsumed bytes for the stream.
      */
-    int unconsumedBytes(Http2Stream stream);
+  int unconsumedBytes(Http2Stream stream);
 
-    /**
+  /**
      * Get the initial flow control window size for the given stream. This quantity is measured in number of bytes. Note
      * the unavailable window portion can be calculated by {@link #initialWindowSize()} - {@link
      * #windowSize(Http2Stream)}.
      */
-    int initialWindowSize(Http2Stream stream);
+  int initialWindowSize(Http2Stream stream);
+ }
 }

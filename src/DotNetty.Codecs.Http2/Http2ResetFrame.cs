@@ -9,6 +9,6 @@ namespace DotNetty.Codecs.Http2
         /**
          * The reason for resetting the stream. Represented as an HTTP/2 error code.
          */
-        long errorCode();
+        ulong errorCode();
     }
 }

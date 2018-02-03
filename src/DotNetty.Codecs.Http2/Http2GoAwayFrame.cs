@@ -21,7 +21,7 @@ namespace DotNetty.Codecs.Http2
         /**
            * The reason for beginning closure of the connection. Represented as an HTTP/2 error code.
            */
-        long errorCode();
+        ulong errorCode();
 
         /**
            * The number of IDs to reserve for the receiver to use while GOAWAY is in transit. This allows

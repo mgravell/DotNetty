@@ -3,6 +3,7 @@
 
 namespace DotNetty.Codecs.Http2
 {
+    using System;
     using System.Text;
     using DotNetty.Buffers;
     using DotNetty.Common.Utilities;
@@ -49,7 +50,6 @@ namespace DotNetty.Codecs.Http2
 
         static readonly IByteBuffer CONNECTION_PREFACE =
             unreleasableBuffer(directBuffer(24).WriteBytes(Encoding.UTF8.GetBytes("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")));
-
 
         static readonly IByteBuffer EMPTY_PING =
             unreleasableBuffer(directBuffer(PING_FRAME_PAYLOAD_LENGTH).WriteZero(PING_FRAME_PAYLOAD_LENGTH));
@@ -142,21 +142,35 @@ namespace DotNetty.Codecs.Http2
         {
             return new UnreleasableByteBuffer(buf);
         }
-        
+
         /**
          * Creates a new big-endian direct buffer with the specified {@code capacity}, which
          * expands its capacity boundlessly on demand.  The new buffer's {@code readerIndex} and
          * {@code writerIndex} are {@code 0}.
          */
-        public static IByteBuffer directBuffer(int initialCapacity) {
+        public static IByteBuffer directBuffer(int initialCapacity)
+        {
             return Unpooled.DirectBuffer(initialCapacity);
         }
-        
+
         /**
          * Indicates whether or not the given value for max frame size falls within the valid range.
          */
-        public static bool isMaxFrameSizeValid(long maxFrameSize) {
+        public static bool isMaxFrameSizeValid(long maxFrameSize)
+        {
             return maxFrameSize >= MAX_FRAME_SIZE_LOWER_BOUND && maxFrameSize <= MAX_FRAME_SIZE_UPPER_BOUND;
+        }
+
+        public static void verifyPadding(int padding)
+        {
+            if (padding < 0 || padding > MAX_PADDING)
+            {
+                throw new ArgumentException($"Invalid padding '{padding}'. Padding must be between 0 and {MAX_PADDING} (inclusive).");
+            }
+        }
+
+        Http2CodecUtil()
+        {
         }
     }
 }
