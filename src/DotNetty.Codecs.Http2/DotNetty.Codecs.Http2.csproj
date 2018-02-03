@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetty.Buffers\DotNetty.Buffers.csproj">
+      <Project>{64508DA2-40F1-4CC3-93E8-EA3B18A64E7E}</Project>
+      <Name>DotNetty.Buffers</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\DotNetty.Codecs\DotNetty.Codecs.csproj">
+      <Project>{25F7AD69-7836-46E8-9B29-0FBB3C128FFB}</Project>
+      <Name>DotNetty.Codecs</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\DotNetty.Handlers\DotNetty.Handlers.csproj">
+      <Project>{12DCCEFD-623B-46CC-979C-407FA265E239}</Project>
+      <Name>DotNetty.Handlers</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\DotNetty.Transport\DotNetty.Transport.csproj">
+      <Project>{82796E9E-1331-4858-90C3-8E74BA4CC383}</Project>
+      <Name>DotNetty.Transport</Name>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
