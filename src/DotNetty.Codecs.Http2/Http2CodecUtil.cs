@@ -131,7 +131,7 @@ namespace DotNetty.Codecs.Http2
 
         static readonly int DEFAULT_MAX_RESERVED_STREAMS = SMALLEST_MAX_CONCURRENT_STREAMS;
 
-        static readonly int DEFAULT_MIN_ALLOCATION_CHUNK = 1024;
+        public static readonly int DEFAULT_MIN_ALLOCATION_CHUNK = 1024;
 
         static readonly int DEFAULT_INITIAL_HUFFMAN_DECODE_CAPACITY = 32;
 

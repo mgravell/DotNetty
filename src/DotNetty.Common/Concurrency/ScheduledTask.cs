@@ -8,6 +8,7 @@ namespace DotNetty.Common.Concurrency
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
+    using DotNetty.Common.Utilities;
 
     abstract class ScheduledTask : IScheduledRunnable
     {
@@ -17,6 +18,7 @@ namespace DotNetty.Common.Concurrency
         protected readonly IPromise Promise;
         protected readonly AbstractScheduledEventExecutor Executor;
         int volatileCancellationState;
+        int queueIndex = PriorityQueue<IScheduledRunnable>.IndexNotInQueue;
 
         protected ScheduledTask(AbstractScheduledEventExecutor executor, PreciseTimeSpan deadline, IPromise promise)
         {
@@ -91,5 +93,9 @@ namespace DotNetty.Common.Concurrency
 
             return true;
         }
+
+        public int GetPriorityQueueIndex(PriorityQueue<IScheduledRunnable> queue) => this.queueIndex;
+
+        public void SetPriorityQueueIndex(PriorityQueue<IScheduledRunnable> queue, int i) => this.queueIndex = i;
     }
 }

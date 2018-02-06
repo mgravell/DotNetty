@@ -29,7 +29,7 @@ namespace DotNetty.Common.Concurrency
         protected static PreciseTimeSpan GetNanos() => PreciseTimeSpan.FromStart;
 
         protected static bool IsNullOrEmpty<T>(PriorityQueue<T> taskQueue)
-            where T : class
+            where T : class, IPriorityQueueNode<T>
         {
             return taskQueue == null || taskQueue.Count == 0;
         }

@@ -7,22 +7,45 @@ namespace DotNetty.Common.Utilities
     using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
+    using System.Reflection;
+    using DotNetty.Common.Internal;
+
+    public interface IPriorityQueue<T> : IQueue<T>
+        where T : class, IPriorityQueueNode<T>
+    {
+        bool TryRemove(T item);
+
+        bool Contains(T item);
+
+        bool PriorityChanged(T item);
+    }
 
     public class PriorityQueue<T> : IEnumerable<T>
-        where T : class
+        where T : class, IPriorityQueueNode<T>
+
     {
+        static readonly T[] EmptyArray = new T[0];
+        
+        public const int IndexNotInQueue = -1;
+        
         readonly IComparer<T> comparer;
         int count;
         int capacity;
         T[] items;
 
-        public PriorityQueue(IComparer<T> comparer)
+        public PriorityQueue(IComparer<T> comparer, int initialCapacity)
         {
             Contract.Requires(comparer != null);
 
             this.comparer = comparer;
-            this.capacity = 11;
-            this.items = new T[this.capacity];
+            this.capacity = initialCapacity;
+            this.items = this.capacity != 0 ? new T[this.capacity] : EmptyArray;
+        }
+
+        public PriorityQueue(IComparer<T> comparer)
+            : this(comparer, 11)
+        {
+            
         }
 
         public PriorityQueue()
@@ -39,7 +62,8 @@ namespace DotNetty.Common.Utilities
             {
                 return null;
             }
-
+            
+            result.SetPriorityQueueIndex(this, IndexNotInQueue);
             int newCount = --this.count;
             T lastItem = this.items[newCount];
             this.items[newCount] = null;
@@ -57,6 +81,13 @@ namespace DotNetty.Common.Utilities
         {
             Contract.Requires(item != null);
 
+            int index = item.GetPriorityQueueIndex(this);
+            if (index != IndexNotInQueue)
+            {
+                throw new ArgumentException($"item.priorityQueueIndex(): {index} (expected: {IndexNotInQueue}) + item: {item}");
+            }
+            
+
             int oldCount = this.count;
             if (oldCount == this.capacity)
             {
@@ -66,13 +97,15 @@ namespace DotNetty.Common.Utilities
             this.BubbleUp(oldCount, item);
         }
 
-        public void Remove(T item)
+        public bool Remove(T item)
         {
-            int index = Array.IndexOf(this.items, item);
-            if (index == -1)
+            int index = item.GetPriorityQueueIndex(this);
+            if (!this.Contains(item, index))
             {
-                return;
+                return false;
             }
+            
+            item.SetPriorityQueueIndex(this, IndexNotInQueue);
 
             this.count--;
             if (index == this.count)
@@ -89,6 +122,40 @@ namespace DotNetty.Common.Utilities
                     this.BubbleUp(index, last);
                 }
             }
+
+            return true;
+        }
+
+        public bool Contains(T item)
+            => this.Contains(item, item.GetPriorityQueueIndex(this));
+        
+        public void PriorityChanged(T node) 
+        {
+            int i = node.GetPriorityQueueIndex(this);
+            if (!this.Contains(node, i)) 
+            {
+                return;
+            }
+
+            // Preserve the min-heap property by comparing the new priority with parents/children in the heap.
+            if (i == 0) 
+            {
+                this.TrickleDown(i, node);
+            } 
+            else 
+            {
+                // Get the parent to see if min-heap properties are violated.
+                int parentIndex = (i - 1) >> 1;
+                T parent = this.items[parentIndex];
+                if (this.comparer.Compare(node, parent) < 0) 
+                {
+                    this.BubbleUp(i, node);
+                } 
+                else 
+                {
+                    this.TrickleDown(i, node);
+                }
+            }
         }
 
         void BubbleUp(int index, T item)
@@ -103,9 +170,12 @@ namespace DotNetty.Common.Utilities
                     break;
                 }
                 this.items[index] = parentItem;
+                parentItem.SetPriorityQueueIndex(this, index);
                 index = parentIndex;
             }
+            
             this.items[index] = item;
+            item.SetPriorityQueueIndex(this, index);
         }
 
         void GrowHeap()
@@ -135,11 +205,20 @@ namespace DotNetty.Common.Utilities
                 {
                     break;
                 }
+                
                 this.items[index] = childItem;
+                childItem.SetPriorityQueueIndex(this, index);
+                
                 index = childIndex;
             }
+            
             this.items[index] = item;
+            item.SetPriorityQueueIndex(this, index);
         }
+        
+        bool Contains(T node, int i) 
+            => i >= 0 && i < this.count && node.Equals(this.items[i]);
+        
 
         public IEnumerator<T> GetEnumerator()
         {
@@ -153,6 +232,11 @@ namespace DotNetty.Common.Utilities
 
         public void Clear()
         {
+            for (int i = 0; i < this.count; i++)
+            {
+                this.items[i]?.SetPriorityQueueIndex(this, IndexNotInQueue);
+            }
+            
             this.count = 0;
             Array.Clear(this.items, 0, 0);
         }

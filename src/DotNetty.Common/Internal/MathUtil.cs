@@ -41,5 +41,8 @@ namespace DotNetty.Common.Internal
             i += (i >> 16);
             return (i & 0x0000003F);
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Compare(long x, long y) => x < y ? -1 : x > y ? 1 : 0;
     }
 }
