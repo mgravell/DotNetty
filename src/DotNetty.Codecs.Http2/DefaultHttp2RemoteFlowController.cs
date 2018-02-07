@@ -236,7 +236,8 @@ namespace DotNetty.Codecs.Http2
         /**
      * The remote flow control state for a single stream.
      */
-        readonly class FlowState : StreamByteDistributor.StreamState {
+        readonly class FlowState : StreamByteDistributorContext 
+        {
             readonly Http2Stream stream;
             readonly Deque<FlowControlled> pendingWriteQueue;
             private int window;
@@ -642,7 +643,7 @@ namespace DotNetty.Codecs.Http2
      * isChannelWritable()
      * </pre>
      */
-    readonly class ListenerWritabilityMonitor extends WritabilityMonitor {
+    class ListenerWritabilityMonitor : WritabilityMonitor {
     readonly Http2FlowControlListener listener;
     readonly Http2StreamVisitor checkStreamWritabilityVisitor = new Http2StreamVisitor() {
             @Override

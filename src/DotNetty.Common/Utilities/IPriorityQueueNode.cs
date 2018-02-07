@@ -16,7 +16,7 @@ namespace DotNetty.Common.Utilities
          * <p>
          * Throwing exceptions from this method will result in undefined behavior.
          */
-        int GetPriorityQueueIndex(PriorityQueue<T> queue);
+        int GetPriorityQueueIndex(IPriorityQueue<T> queue);
 
         /**
           * Used by {@link DefaultPriorityQueue} to maintain state for an element in the queue.
@@ -25,6 +25,6 @@ namespace DotNetty.Common.Utilities
           * @param queue The queue for which the index is being set.
           * @param i The index as used by {@link DefaultPriorityQueue}.
           */
-        void SetPriorityQueueIndex(PriorityQueue<T> queue, int i);
+        void SetPriorityQueueIndex(IPriorityQueue<T> queue, int i);
     }
 }

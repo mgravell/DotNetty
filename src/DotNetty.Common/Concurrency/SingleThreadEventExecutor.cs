@@ -385,7 +385,7 @@ namespace DotNetty.Common.Concurrency
                 if (!this.taskQueue.TryEnqueue(scheduledTask))
                 {
                     // No space left in the task queue add it back to the scheduledTaskQueue so we pick it up again.
-                    this.ScheduledTaskQueue.Enqueue(scheduledTask);
+                    this.ScheduledTaskQueue.TryEnqueue(scheduledTask);
                     return false;
                 }
                 scheduledTask = this.PollScheduledTask(nanoTime);
@@ -403,8 +403,7 @@ namespace DotNetty.Common.Concurrency
                 this.emptyEvent.Reset();
                 if (!this.taskQueue.TryDequeue(out task) && !this.IsShuttingDown) // revisit queue as producer might have put a task in meanwhile
                 {
-                    IScheduledRunnable nextScheduledTask = this.ScheduledTaskQueue.Peek();
-                    if (nextScheduledTask != null)
+                    if (this.ScheduledTaskQueue.TryPeek(out IScheduledRunnable nextScheduledTask))
                     {
                         PreciseTimeSpan wakeupTimeout = nextScheduledTask.Deadline - PreciseTimeSpan.FromStart;
                         if (wakeupTimeout.Ticks > 0)

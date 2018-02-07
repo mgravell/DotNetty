@@ -428,7 +428,7 @@ namespace DotNetty.Codecs
 
         public bool Remove(TKey name) => this.GetAndRemove(name) != null;
 
-        public IHeaders<TKey, TValue> Clear()
+        public virtual IHeaders<TKey, TValue> Clear()
         {
             this.entries.Fill(null);
             this.head.Before = this.head.After = this.head;

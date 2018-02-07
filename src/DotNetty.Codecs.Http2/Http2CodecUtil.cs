@@ -168,6 +168,13 @@ namespace DotNetty.Codecs.Http2
                 throw new ArgumentException($"Invalid padding '{padding}'. Padding must be between 0 and {MAX_PADDING} (inclusive).");
             }
         }
+        
+        /**
+         * Calculate the amount of bytes that can be sent by {@code state}. The lower bound is {@code 0}.
+         */
+        public static int streamableBytes(StreamByteDistributorContext state) {
+            return Math.Max(0, (int) Math.Min(state.pendingBytes(), state.windowSize()));
+        }        
 
         Http2CodecUtil()
         {

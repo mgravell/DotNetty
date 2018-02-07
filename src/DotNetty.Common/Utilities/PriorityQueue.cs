@@ -7,20 +7,11 @@ namespace DotNetty.Common.Utilities
     using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
+    using System.Net.Http.Headers;
     using System.Reflection;
-    using DotNetty.Common.Internal;
+    using System.Runtime.CompilerServices;
 
-    public interface IPriorityQueue<T> : IQueue<T>
-        where T : class, IPriorityQueueNode<T>
-    {
-        bool TryRemove(T item);
-
-        bool Contains(T item);
-
-        bool PriorityChanged(T item);
-    }
-
-    public class PriorityQueue<T> : IEnumerable<T>
+    public class PriorityQueue<T> : IPriorityQueue<T>
         where T : class, IPriorityQueueNode<T>
 
     {
@@ -53,17 +44,22 @@ namespace DotNetty.Common.Utilities
         {
         }
 
-        public int Count => this.count;
 
-        public T Dequeue()
+
+       public int Count => this.count;
+
+        public bool IsEmpty => this.Count == 0;
+
+        public T Dequeue() => this.TryDequeue(out T item) ? item : null;
+
+        public bool TryDequeue(out T item)
         {
-            T result = this.Peek();
-            if (result == null)
+            if (!this.TryPeek(out item) || item == null)
             {
-                return null;
+                return false;
             }
             
-            result.SetPriorityQueueIndex(this, IndexNotInQueue);
+            item.SetPriorityQueueIndex(this, IndexNotInQueue);
             int newCount = --this.count;
             T lastItem = this.items[newCount];
             this.items[newCount] = null;
@@ -72,12 +68,24 @@ namespace DotNetty.Common.Utilities
                 this.TrickleDown(0, lastItem);
             }
 
-            return result;
+            return true;
         }
 
-        public T Peek() => this.count == 0 ? null : this.items[0];
+        public bool TryPeek(out T item)
+        {
+            if (this.count == 0)
+            {
+                item = null;
+                return false;
+            }
+            else
+            {
+                item = this.items[0];
+                return true;
+            }
+        }
 
-        public void Enqueue(T item)
+        public bool TryEnqueue(T item)
         {
             Contract.Requires(item != null);
 
@@ -86,7 +94,6 @@ namespace DotNetty.Common.Utilities
             {
                 throw new ArgumentException($"item.priorityQueueIndex(): {index} (expected: {IndexNotInQueue}) + item: {item}");
             }
-            
 
             int oldCount = this.count;
             if (oldCount == this.capacity)
@@ -95,9 +102,11 @@ namespace DotNetty.Common.Utilities
             }
             this.count = oldCount + 1;
             this.BubbleUp(oldCount, item);
+            
+            return true;
         }
 
-        public bool Remove(T item)
+        public bool TryRemove(T item)
         {
             int index = item.GetPriorityQueueIndex(this);
             if (!this.Contains(item, index))

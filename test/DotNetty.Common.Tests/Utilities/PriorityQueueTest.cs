@@ -4,6 +4,7 @@
 namespace DotNetty.Common.Tests.Utilities
 {
     using System;
+    using System.Runtime.CompilerServices;
     using DotNetty.Common.Utilities;
     using Xunit;
 
@@ -21,20 +22,20 @@ namespace DotNetty.Common.Tests.Utilities
         [InlineData(7, 5)]
         public void PriorityQueueRemoveTest(int length, int removeIndex)
         {
-            var queue = new PriorityQueue<Tuple<int>>();
+            var queue = new PriorityQueue<TestNode>();
             for (int i = length - 1; i >= 0; i--)
             {
-                queue.Enqueue(Tuple.Create(i));
+                queue.TryEnqueue(new TestNode(i));
             }
 
             if (removeIndex == -1)
             {
-                queue.Remove(Tuple.Create(length));
+                queue.TryRemove(new TestNode(length));
                 Assert.Equal(length, queue.Count);
             }
             else
             {
-                queue.Remove(Tuple.Create(removeIndex));
+                queue.TryRemove(new TestNode(removeIndex));
                 Assert.Equal(length - 1, queue.Count);
             }
         }
@@ -48,10 +49,10 @@ namespace DotNetty.Common.Tests.Utilities
         [InlineData(new[] { 2, 1 }, new[] { 1, 2 })]
         public void PriorityQueueOrderTest(int[] input, int[] expectedOutput)
         {
-            var queue = new PriorityQueue<Tuple<int>>();
+            var queue = new PriorityQueue<TestNode>();
             foreach (int value in input)
             {
-                queue.Enqueue(Tuple.Create(value));
+                queue.TryEnqueue(new TestNode(value));
             }
 
             for (int index = 0; index < expectedOutput.Length; index++)
@@ -61,5 +62,21 @@ namespace DotNetty.Common.Tests.Utilities
             }
             Assert.Equal(0, queue.Count);
         }
+
+        class TestNode : Tuple<int>, IPriorityQueueNode<TestNode>
+        {
+            int queueIndex;
+            
+            public TestNode(int item1)
+                : base(item1)
+            {
+            }
+
+            public int GetPriorityQueueIndex(PriorityQueue<TestNode> queue) => this.queueIndex;
+
+            public void SetPriorityQueueIndex(PriorityQueue<TestNode> queue, int i) => this.queueIndex = i;
+
+        }
+        
     }
 }

@@ -94,8 +94,8 @@ namespace DotNetty.Common.Concurrency
             return true;
         }
 
-        public int GetPriorityQueueIndex(PriorityQueue<IScheduledRunnable> queue) => this.queueIndex;
+        public int GetPriorityQueueIndex(IPriorityQueue<IScheduledRunnable> queue) => this.queueIndex;
 
-        public void SetPriorityQueueIndex(PriorityQueue<IScheduledRunnable> queue, int i) => this.queueIndex = i;
+        public void SetPriorityQueueIndex(IPriorityQueue<IScheduledRunnable> queue, int i) => this.queueIndex = i;
     }
 }

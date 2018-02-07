@@ -339,8 +339,7 @@ namespace DotNetty.Transport.Libuv
             }
             else
             {
-                IScheduledRunnable nextScheduledTask = this.ScheduledTaskQueue.Peek();
-                if (nextScheduledTask != null)
+                if (this.ScheduledTaskQueue.TryPeek(out IScheduledRunnable nextScheduledTask))
                 {
                     PreciseTimeSpan wakeUpTimeout = nextScheduledTask.Deadline - PreciseTimeSpan.FromStart;
                     if (wakeUpTimeout.Ticks > 0)
@@ -361,7 +360,7 @@ namespace DotNetty.Transport.Libuv
                 if (!this.taskQueue.TryEnqueue(scheduledTask))
                 {
                     // No space left in the task queue add it back to the scheduledTaskQueue so we pick it up again.
-                    this.ScheduledTaskQueue.Enqueue(scheduledTask);
+                    this.ScheduledTaskQueue.TryEnqueue(scheduledTask);
                     return false;
                 }
                 scheduledTask = this.PollScheduledTask(nanoTime);

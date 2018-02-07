@@ -1,52 +1,34 @@
-/*
- * Copyright 2014 The Netty Project
- *
- * The Netty Project licenses this file to you under the Apache License, version 2.0 (the
- * "License"); you may not use this file except in compliance with the License. You may obtain a
- * copy of the License at:
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- */
+namespace DotNetty.Codecs.Http2
+{
+    using System;
+    using System.Diagnostics.Contracts;
+    using DotNetty.Buffers;
 
-package io.netty.handler.codec.http2;
+    public class DefaultHttp2HeadersDecoder : Http2HeadersDecoder, Http2HeadersDecoderConfiguration
+    {
+        static readonly float HEADERS_COUNT_WEIGHT_NEW = 1 / 5f;
+        static readonly float HEADERS_COUNT_WEIGHT_HISTORICAL = 1 - HEADERS_COUNT_WEIGHT_NEW;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.util.internal.ObjectUtil;
-import io.netty.util.internal.UnstableApi;
+        readonly HpackDecoder hpackDecoder;
+        readonly bool _validateHeaders;
 
-import static io.netty.handler.codec.http2.Http2CodecUtil.DEFAULT_HEADER_LIST_SIZE;
-import static io.netty.handler.codec.http2.Http2CodecUtil.DEFAULT_INITIAL_HUFFMAN_DECODE_CAPACITY;
-import static io.netty.handler.codec.http2.Http2Error.COMPRESSION_ERROR;
-import static io.netty.handler.codec.http2.Http2Exception.connectionError;
-
-@UnstableApi
-public class DefaultHttp2HeadersDecoder implements Http2HeadersDecoder, Http2HeadersDecoder.Configuration {
-    private static final float HEADERS_COUNT_WEIGHT_NEW = 1 / 5f;
-    private static final float HEADERS_COUNT_WEIGHT_HISTORICAL = 1 - HEADERS_COUNT_WEIGHT_NEW;
-
-    private final HpackDecoder hpackDecoder;
-    private final boolean validateHeaders;
-
-    /**
+        /**
      * Used to calculate an exponential moving average of header sizes to get an estimate of how large the data
      * structure for storing headers should be.
      */
-    private float headerArraySizeAccumulator = 8;
+        float headerArraySizeAccumulator = 8;
 
-    public DefaultHttp2HeadersDecoder() {
-        this(true);
-    }
+        public DefaultHttp2HeadersDecoder() : this(true)
+        {
+            
+        }
 
-    public DefaultHttp2HeadersDecoder(boolean validateHeaders) {
-        this(validateHeaders, DEFAULT_HEADER_LIST_SIZE);
-    }
+        public DefaultHttp2HeadersDecoder(bool validateHeaders) : this(validateHeaders, Http2CodecUtil.DEFAULT_HEADER_LIST_SIZE)
+        {
+            
+        }
 
-    /**
+        /**
      * Create a new instance.
      * @param validateHeaders {@code true} to validate headers are valid according to the RFC.
      * @param maxHeaderListSize This is the only setting that can be configured before notifying the peer.
@@ -54,11 +36,13 @@ public class DefaultHttp2HeadersDecoder implements Http2HeadersDecoder, Http2Hea
      *  allows a lower than advertised limit from being enforced, and the default limit is unlimited
      *  (which is dangerous).
      */
-    public DefaultHttp2HeadersDecoder(boolean validateHeaders, long maxHeaderListSize) {
-        this(validateHeaders, maxHeaderListSize, DEFAULT_INITIAL_HUFFMAN_DECODE_CAPACITY);
-    }
+        public DefaultHttp2HeadersDecoder(bool validateHeaders, long maxHeaderListSize)
+            : this(validateHeaders, maxHeaderListSize, Http2CodecUtil.DEFAULT_INITIAL_HUFFMAN_DECODE_CAPACITY)
+        {
+            
+        }
 
-    /**
+        /**
      * Create a new instance.
      * @param validateHeaders {@code true} to validate headers are valid according to the RFC.
      * @param maxHeaderListSize This is the only setting that can be configured before notifying the peer.
@@ -67,89 +51,111 @@ public class DefaultHttp2HeadersDecoder implements Http2HeadersDecoder, Http2Hea
      *  (which is dangerous).
      * @param initialHuffmanDecodeCapacity Size of an intermediate buffer used during huffman decode.
      */
-    public DefaultHttp2HeadersDecoder(boolean validateHeaders, long maxHeaderListSize,
-                                      int initialHuffmanDecodeCapacity) {
-        this(validateHeaders, new HpackDecoder(maxHeaderListSize, initialHuffmanDecodeCapacity));
-    }
+        public DefaultHttp2HeadersDecoder(
+            bool validateHeaders,
+            long maxHeaderListSize,
+            int initialHuffmanDecodeCapacity) : this(validateHeaders, new HpackDecoder(maxHeaderListSize, initialHuffmanDecodeCapacity))
+        {
+            
+        }
 
-    /**
+        /**
      * Exposed Used for testing only! Default values used in the initial settings frame are overridden intentionally
      * for testing but violate the RFC if used outside the scope of testing.
      */
-    DefaultHttp2HeadersDecoder(boolean validateHeaders, HpackDecoder hpackDecoder) {
-        this.hpackDecoder = ObjectUtil.checkNotNull(hpackDecoder, "hpackDecoder");
-        this.validateHeaders = validateHeaders;
-    }
-
-    @Override
-    public void maxHeaderTableSize(long max) throws Http2Exception {
-        hpackDecoder.setMaxHeaderTableSize(max);
-    }
-
-    @Override
-    public long maxHeaderTableSize() {
-        return hpackDecoder.getMaxHeaderTableSize();
-    }
-
-    @Override
-    public void maxHeaderListSize(long max, long goAwayMax) throws Http2Exception {
-        hpackDecoder.setMaxHeaderListSize(max, goAwayMax);
-    }
-
-    @Override
-    public long maxHeaderListSize() {
-        return hpackDecoder.getMaxHeaderListSize();
-    }
-
-    @Override
-    public long maxHeaderListSizeGoAway() {
-        return hpackDecoder.getMaxHeaderListSizeGoAway();
-    }
-
-    @Override
-    public Configuration configuration() {
-        return this;
-    }
-
-    @Override
-    public Http2Headers decodeHeaders(int streamId, ByteBuf headerBlock) throws Http2Exception {
-        try {
-            final Http2Headers headers = newHeaders();
-            hpackDecoder.decode(streamId, headerBlock, headers);
-            headerArraySizeAccumulator = HEADERS_COUNT_WEIGHT_NEW * headers.size() +
-                                         HEADERS_COUNT_WEIGHT_HISTORICAL * headerArraySizeAccumulator;
-            return headers;
-        } catch (Http2Exception e) {
-            throw e;
-        } catch (Throwable e) {
-            // Default handler for any other types of errors that may have occurred. For example,
-            // the the Header builder throws IllegalArgumentException if the key or value was invalid
-            // for any reason (e.g. the key was an invalid pseudo-header).
-            throw connectionError(COMPRESSION_ERROR, e, e.getMessage());
+        DefaultHttp2HeadersDecoder(bool validateHeaders, HpackDecoder hpackDecoder)
+        {
+            Contract.Requires(hpackDecoder != null);
+            this.hpackDecoder = hpackDecoder;
+            this._validateHeaders = validateHeaders;
         }
-    }
 
-    /**
-     * A weighted moving average estimating how many headers are expected during the decode process.
-     * @return an estimate of how many headers are expected during the decode process.
-     */
-    protected final int numberOfHeadersGuess() {
-        return (int) headerArraySizeAccumulator;
-    }
 
-    /**
-     * Determines if the headers should be validated as a result of the decode operation.
-     * @return {@code true} if the headers should be validated as a result of the decode operation.
-     */
-    protected final boolean validateHeaders() {
-        return validateHeaders;
-    }
+        public void maxHeaderTableSize(long max)
+        {
+            hpackDecoder.setMaxHeaderTableSize(max);
+        }
 
-    /**
-     * Create a new {@link Http2Headers} object which will store the results of the decode operation.
-     * @return a new {@link Http2Headers} object which will store the results of the decode operation.
-     */
-    protected Http2Headers newHeaders() {
-        return new DefaultHttp2Headers(validateHeaders, (int) headerArraySizeAccumulator);
+
+
+        public long maxHeaderTableSize()
+        {
+            return hpackDecoder.getMaxHeaderTableSize();
+        }
+
+
+        public void maxHeaderListSize(long max, long goAwayMax)
+        {
+            hpackDecoder.setMaxHeaderListSize(max, goAwayMax);
+        }
+
+
+        public long maxHeaderListSize()
+        {
+            return hpackDecoder.getMaxHeaderListSize();
+        }
+
+
+        public long maxHeaderListSizeGoAway()
+        {
+            return hpackDecoder.getMaxHeaderListSizeGoAway();
+        }
+
+
+        public Http2HeadersDecoderConfiguration configuration()
+        {
+            return this;
+        }
+
+
+        public Http2Headers decodeHeaders(int streamId, IByteBuffer headerBlock)
+        {
+            try
+            {
+                Http2Headers headers = newHeaders();
+                hpackDecoder.decode(streamId, headerBlock, headers);
+                headerArraySizeAccumulator = HEADERS_COUNT_WEIGHT_NEW * headers.Size +
+                    HEADERS_COUNT_WEIGHT_HISTORICAL * headerArraySizeAccumulator;
+                return headers;
+            }
+            catch (Http2Exception)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                // Default handler for any other types of errors that may have occurred. For example,
+                // the the Header builder throws IllegalArgumentException if the key or value was invalid
+                // for any reason (e.g. the key was an invalid pseudo-header).
+                throw Http2Exception.connectionError(Http2Error.COMPRESSION_ERROR, e, e.Message);
+            }
+        }
+
+        /**
+         * A weighted moving average estimating how many headers are expected during the decode process.
+         * @return an estimate of how many headers are expected during the decode process.
+         */
+        protected int numberOfHeadersGuess()
+        {
+            return (int)headerArraySizeAccumulator;
+        }
+
+        /**
+         * Determines if the headers should be validated as a result of the decode operation.
+         * @return {@code true} if the headers should be validated as a result of the decode operation.
+         */
+        protected bool validateHeaders()
+        {
+            return _validateHeaders;
+        }
+
+        /**
+         * Create a new {@link Http2Headers} object which will store the results of the decode operation.
+         * @return a new {@link Http2Headers} object which will store the results of the decode operation.
+         */
+        protected Http2Headers newHeaders()
+        {
+            return new DefaultHttp2Headers(_validateHeaders, (int)headerArraySizeAccumulator);
+        }
     }
 }
