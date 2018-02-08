@@ -6,6 +6,7 @@ namespace DotNetty.Transport.Channels
     using System;
     using System.Net;
     using System.Threading.Tasks;
+    using DotNetty.Common.Utilities;
     using DotNetty.Common.Concurrency;
 
     public class ChannelHandlerAdapter : IChannelHandler
@@ -74,5 +75,13 @@ namespace DotNetty.Transport.Channels
         public virtual void Read(IChannelHandlerContext context) => context.Read();
 
         public virtual bool IsSharable => false;
+
+        protected void EnsureNotSharable()
+        {
+            if (this.IsSharable)
+            {
+                throw new InvalidOperationException($"ChannelHandler {StringUtil.SimpleClassName(this)} is not allowed to be shared");
+            }
+        }
     }
 }
