@@ -18,7 +18,7 @@ namespace DotNetty.Codecs.Http2
         {
         }
 
-        public void onStreamHalfClosed(Http2Stream stream)
+        public virtual void onStreamHalfClosed(Http2Stream stream)
         {
         }
 

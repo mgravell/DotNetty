@@ -174,7 +174,14 @@ namespace DotNetty.Codecs.Http2
          */
         public static int streamableBytes(StreamByteDistributorContext state) {
             return Math.Max(0, (int) Math.Min(state.pendingBytes(), state.windowSize()));
-        }        
+        }
+        
+        internal static void writeFrameHeaderInternal(IByteBuffer output, int payloadLength, Http2FrameTypes type, Http2Flags flags, int streamId) {
+            output.WriteMedium(payloadLength);
+            output.WriteByte((byte)type);
+            output.WriteByte(flags.value());
+            output.WriteInt(streamId);
+        }
 
         Http2CodecUtil()
         {

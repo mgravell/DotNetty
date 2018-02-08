@@ -24,7 +24,7 @@ namespace DotNetty.Codecs.Http2
      * Each write operation will use the {@link #allocationQuantum(int)} to know how many more bytes should be allocated
      * relative to the next stream which wants to write. This is to balance fairness while also considering goodput.
      */
-    public sealed class WeightedFairQueueByteDistributor : StreamByteDistributor
+    public sealed class WeightedFairQueueByteDistributor : Http2ConnectionAdapter, StreamByteDistributor
     {
         /**
      * The initial size of the children map is chosen to be conservative on initial memory allocations under
@@ -95,7 +95,85 @@ namespace DotNetty.Codecs.Http2
             connectionStream.setProperty(this.stateKey, this.connectionState = new State(this, connectionStream, 16));
 
             // Register for notification of new streams.
-            connection.addListener(new StateTracker(this));
+            connection.addListener(this);
+        }
+
+        public override void onStreamAdded(Http2Stream stream)
+        {
+            int streamId = stream.id();
+            if (!this.stateOnlyMap.TryGetValue(streamId, out State state) || !this.stateOnlyMap.Remove(streamId))
+            {
+                state = new State(this, stream);
+                // Only the stream which was just added will change parents. So we only need an array of size 1.
+                List<ParentChangedEvent> events = new List<ParentChangedEvent>(1);
+                this.connectionState.takeChild(state, false, events);
+                this.notifyParentChanged(events);
+            }
+            else
+            {
+                this.stateOnlyRemovalQueue.TryRemove(state);
+                state.stream = stream;
+            }
+
+            Http2StreamState streamState = stream.state();
+            if (Http2StreamState.RESERVED_REMOTE.Equals(streamState) || Http2StreamState.RESERVED_LOCAL.Equals(streamState))
+            {
+                state.setStreamReservedOrActivated();
+                // wasStreamReservedOrActivated is part of the comparator for stateOnlyRemovalQueue there is no
+                // need to reprioritize here because it will not be in stateOnlyRemovalQueue.
+            }
+
+            stream.setProperty(this.stateKey, state);
+        }
+
+        public override void onStreamActive(Http2Stream stream)
+        {
+            this.state(stream).setStreamReservedOrActivated();
+            // wasStreamReservedOrActivated is part of the comparator for stateOnlyRemovalQueue there is no need to
+            // reprioritize here because it will not be in stateOnlyRemovalQueue.
+        }
+
+        public override void onStreamClosed(Http2Stream stream)
+        {
+            this.state(stream).close();
+        }
+
+        public override void onStreamRemoved(Http2Stream stream)
+        {
+            // The stream has been removed from the connection. We can no longer rely on the stream's property
+            // storage to track the State. If we have room, and the precedence of the stream is sufficient, we
+            // should retain the State in the stateOnlyMap.
+            State state = this.state(stream);
+
+            // Typically the stream is set to null when the stream is closed because it is no longer needed to write
+            // data. However if the stream was not activated it may not be closed (reserved streams) so we ensure
+            // the stream reference is set to null to avoid retaining a reference longer than necessary.
+            state.stream = null;
+
+            if (this.maxStateOnlySize == 0)
+            {
+                state.parent.removeChild(state);
+                return;
+            }
+
+            if (this.stateOnlyRemovalQueue.Count == this.maxStateOnlySize)
+            {
+                this.stateOnlyRemovalQueue.TryPeek(out State stateToRemove);
+                if (StateOnlyComparator.INSTANCE.Compare(stateToRemove, state) >= 0)
+                {
+                    // The "lowest priority" stream is a "higher priority" than the stream being removed, so we
+                    // just discard the state.
+                    state.parent.removeChild(state);
+                    return;
+                }
+
+                this.stateOnlyRemovalQueue.TryDequeue(out State _);
+                stateToRemove.parent.removeChild(stateToRemove);
+                this.stateOnlyMap.Remove(stateToRemove.streamId);
+            }
+
+            this.stateOnlyRemovalQueue.TryEnqueue(state);
+            this.stateOnlyMap.Add(state.streamId, state);
         }
 
         public void updateStreamableBytes(StreamByteDistributorContext state)
@@ -180,7 +258,9 @@ namespace DotNetty.Codecs.Http2
             }
         }
 
-        public bool distribute(int maxBytes, Http2StreamWriter writer)
+        public bool distribute(int maxBytes, Http2StreamWriter writer) => this.distribute(maxBytes, writer.write);
+
+        public bool distribute(int maxBytes, Action<Http2Stream, int> writer)
         {
             // As long as there is some active frame we should write at least 1 time.
             if (this.connectionState.activeCountForTree == 0)
@@ -217,7 +297,7 @@ namespace DotNetty.Codecs.Http2
             this._allocationQuantum = allocationQuantum;
         }
 
-        int distribute(int maxBytes, Http2StreamWriter writer, State state)
+        int distribute(int maxBytes, Action<Http2Stream, int> writer, State state)
         {
             if (state.isActive())
             {
@@ -248,7 +328,7 @@ namespace DotNetty.Codecs.Http2
          * We check connectionState.activeCountForTree == 0 before any allocation is done. So if the connection stream
          * has no active children we don't get into this method.
          */
-        int distributeToChildren(int maxBytes, Http2StreamWriter writer, State state)
+        int distributeToChildren(int maxBytes, Action<Http2Stream, int> writer, State state)
         {
             long oldTotalQueuedWeights = state.totalQueuedWeights;
             State childState = state.pollPseudoTimeQueue();
@@ -337,94 +417,6 @@ namespace DotNetty.Codecs.Http2
                     evt.state.parent.offerAndInitializePseudoTime(evt.state);
                     evt.state.parent.activeCountChangeForTree(evt.state.activeCountForTree);
                 }
-            }
-        }
-
-        class StateTracker : Http2ConnectionAdapter
-        {
-            readonly WeightedFairQueueByteDistributor parent;
-
-            public StateTracker(WeightedFairQueueByteDistributor parent)
-            {
-                this.parent = parent;
-            }
-
-            public override void onStreamAdded(Http2Stream stream)
-            {
-                int streamId = stream.id();
-                if (!this.parent.stateOnlyMap.TryGetValue(streamId, out State state) || !this.parent.stateOnlyMap.Remove(streamId))
-                {
-                    state = new State(this.parent, stream);
-                    // Only the stream which was just added will change parents. So we only need an array of size 1.
-                    List<ParentChangedEvent> events = new List<ParentChangedEvent>(1);
-                    this.parent.connectionState.takeChild(state, false, events);
-                    this.parent.notifyParentChanged(events);
-                }
-                else
-                {
-                    this.parent.stateOnlyRemovalQueue.TryRemove(state);
-                    state.stream = stream;
-                }
-
-                Http2StreamState streamState = stream.state();
-                if (Http2StreamState.RESERVED_REMOTE.Equals(streamState) || Http2StreamState.RESERVED_LOCAL.Equals(streamState))
-                {
-                    state.setStreamReservedOrActivated();
-                    // wasStreamReservedOrActivated is part of the comparator for stateOnlyRemovalQueue there is no
-                    // need to reprioritize here because it will not be in stateOnlyRemovalQueue.
-                }
-
-                stream.setProperty(this.parent.stateKey, state);
-            }
-
-            public override void onStreamActive(Http2Stream stream)
-            {
-                this.parent.state(stream).setStreamReservedOrActivated();
-                // wasStreamReservedOrActivated is part of the comparator for stateOnlyRemovalQueue there is no need to
-                // reprioritize here because it will not be in stateOnlyRemovalQueue.
-            }
-
-            public override void onStreamClosed(Http2Stream stream)
-            {
-                this.parent.state(stream).close();
-            }
-
-            public override void onStreamRemoved(Http2Stream stream)
-            {
-                // The stream has been removed from the connection. We can no longer rely on the stream's property
-                // storage to track the State. If we have room, and the precedence of the stream is sufficient, we
-                // should retain the State in the stateOnlyMap.
-                State state = this.parent.state(stream);
-
-                // Typically the stream is set to null when the stream is closed because it is no longer needed to write
-                // data. However if the stream was not activated it may not be closed (reserved streams) so we ensure
-                // the stream reference is set to null to avoid retaining a reference longer than necessary.
-                state.stream = null;
-
-                if (this.parent.maxStateOnlySize == 0)
-                {
-                    state.parent.removeChild(state);
-                    return;
-                }
-
-                if (this.parent.stateOnlyRemovalQueue.Count == this.parent.maxStateOnlySize)
-                {
-                    this.parent.stateOnlyRemovalQueue.TryPeek(out State stateToRemove);
-                    if (StateOnlyComparator.INSTANCE.Compare(stateToRemove, state) >= 0)
-                    {
-                        // The "lowest priority" stream is a "higher priority" than the stream being removed, so we
-                        // just discard the state.
-                        state.parent.removeChild(state);
-                        return;
-                    }
-
-                    this.parent.stateOnlyRemovalQueue.TryDequeue(out State _);
-                    stateToRemove.parent.removeChild(stateToRemove);
-                    this.parent.stateOnlyMap.Remove(stateToRemove.streamId);
-                }
-
-                this.parent.stateOnlyRemovalQueue.TryEnqueue(state);
-                this.parent.stateOnlyMap.Add(state.streamId, state);
             }
         }
 
@@ -702,12 +694,12 @@ namespace DotNetty.Codecs.Http2
                 this.children = new Dictionary<int, State>();
             }
 
-            internal void write(int numBytes, Http2StreamWriter writer)
+            internal void write(int numBytes, Action<Http2Stream, int> writer)
             {
                 Contract.Assert(this.stream != null);
                 try
                 {
-                    writer.write(this.stream, numBytes);
+                    writer(this.stream, numBytes);
                 }
                 catch (Exception t)
                 {

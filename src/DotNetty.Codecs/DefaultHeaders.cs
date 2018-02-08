@@ -27,7 +27,7 @@ namespace DotNetty.Codecs
         static readonly NullNameValidator<TKey> DefaultKeyNameValidator = new NullNameValidator<TKey>();
 
         readonly HeaderEntry<TKey, TValue>[] entries;
-        readonly HeaderEntry<TKey, TValue> head;
+        protected readonly HeaderEntry<TKey, TValue> head;
 
         readonly byte hashMask;
         protected readonly IValueConverter<TValue> ValueConverter;
@@ -835,19 +835,15 @@ namespace DotNetty.Codecs
         static void ThrowInvalidOperationException(string message) => throw new InvalidOperationException(message);
     }
 
-    public sealed class HeaderEntry<TKey, TValue>
+    public class HeaderEntry<TKey, TValue>
         where TKey : class
         where TValue : class
     {
         internal readonly int Hash;
         // ReSharper disable InconsistentNaming
         internal readonly TKey key;
-        internal TValue value;
+        protected internal TValue value;
         // ReSharper restore InconsistentNaming
-
-        internal HeaderEntry<TKey, TValue> Next;
-        internal HeaderEntry<TKey, TValue> Before;
-        internal HeaderEntry<TKey, TValue> After;
 
         public HeaderEntry(int hash, TKey key)
         {
@@ -873,12 +869,14 @@ namespace DotNetty.Codecs
 
             this.After = head;
             this.Before = head.Before;
-            // PointNeighborsToThis
-            this.Before.After = this;
-            this.After.Before = this;
+            this.PointNeighborsToThis();
         }
 
-        internal void Remove()
+        public HeaderEntry<TKey, TValue> After { get; protected internal set; }
+        public HeaderEntry<TKey, TValue> Before { get; protected internal set; }
+        public HeaderEntry<TKey, TValue> Next { get; protected internal set; }
+
+        public virtual void Remove()
         {
             this.Before.After = this.After;
             this.After.Before = this.Before;
@@ -898,6 +896,12 @@ namespace DotNetty.Codecs
             this.value = newValue;
 
             return oldValue;
+        }
+        
+        protected void PointNeighborsToThis() 
+        {
+            this.Before.After = this;
+            this.After.Before = this;
         }
 
         public override string ToString() => this.Hash == -1 ? "Empty" : $"{this.key}={this.value}";

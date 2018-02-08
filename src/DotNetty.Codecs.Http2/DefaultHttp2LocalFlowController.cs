@@ -15,7 +15,7 @@ namespace DotNetty.Codecs.Http2
      * This class is <strong>NOT</strong> thread safe. The assumption is all methods must be invoked from a single thread.
      * Typically this thread is the event loop thread for the {@link IChannelHandlerContext} managed by this class.
      */
-    public class DefaultHttp2LocalFlowController : Http2LocalFlowController
+    public class DefaultHttp2LocalFlowController : Http2ConnectionAdapter, Http2LocalFlowController
     {
         /**
          * The default ratio of window size to initial window size below which a {@code WINDOW_UPDATE}
@@ -62,60 +62,51 @@ namespace DotNetty.Codecs.Http2
             connection.connectionStream().setProperty(this.stateKey, connectionState);
 
             // Register for notification of new streams.
-            connection.addListener(new StateTracker(this));
+            connection.addListener(this);
         }
 
-        class StateTracker : Http2ConnectionAdapter
+        public override void onStreamAdded(Http2Stream stream)
         {
-            readonly DefaultHttp2LocalFlowController controller;
+            // Unconditionally used the reduced flow control state because it requires no object allocation
+            // and the DefaultFlowState will be allocated in onStreamActive.
+            stream.setProperty(this.stateKey, REDUCED_FLOW_STATE);
+        }
 
-            public StateTracker(DefaultHttp2LocalFlowController controller)
-            {
-                this.controller = controller;
-            }
+        public override void onStreamActive(Http2Stream stream)
+        {
+            // Need to be sure the stream's initial window is adjusted for SETTINGS
+            // frames which may have been exchanged while it was in IDLE
+            stream.setProperty(this.stateKey, new DefaultState(this, stream, this._initialWindowSize));
+        }
 
-            public override void onStreamAdded(Http2Stream stream)
+        public override void onStreamClosed(Http2Stream stream)
+        {
+            try
             {
-                // Unconditionally used the reduced flow control state because it requires no object allocation
-                // and the DefaultFlowState will be allocated in onStreamActive.
-                stream.setProperty(this.controller.stateKey, REDUCED_FLOW_STATE);
-            }
-
-            public override void onStreamActive(Http2Stream stream)
-            {
-                // Need to be sure the stream's initial window is adjusted for SETTINGS
-                // frames which may have been exchanged while it was in IDLE
-                stream.setProperty(this.controller.stateKey, new DefaultState(this.controller, stream, this.controller._initialWindowSize));
-            }
-
-            public override void onStreamClosed(Http2Stream stream)
-            {
-                try
+                // When a stream is closed, consume any remaining bytes so that they
+                // are restored to the connection window.
+                FlowState state = this.state(stream);
+                int unconsumedBytes = state.unconsumedBytes();
+                if (this.ctx != null && unconsumedBytes > 0)
                 {
-                    // When a stream is closed, consume any remaining bytes so that they
-                    // are restored to the connection window.
-                    FlowState state = this.controller.state(stream);
-                    int unconsumedBytes = state.unconsumedBytes();
-                    if (this.controller.ctx != null && unconsumedBytes > 0)
-                    {
-                        this.controller.connectionState().consumeBytes(unconsumedBytes);
-                        state.consumeBytes(unconsumedBytes);
-                    }
+                    this.connectionState().consumeBytes(unconsumedBytes);
+                    state.consumeBytes(unconsumedBytes);
                 }
-                /*catch (Http2Exception e)
-                {
-                    
-                    PlatformDependent.throwException(e);
-                }*/
-                finally
-                {
-                    // Unconditionally reduce the amount of memory required for flow control because there is no
-                    // object allocation costs associated with doing so and the stream will not have any more
-                    // local flow control state to keep track of anymore.
-                    stream.setProperty(this.controller.stateKey, REDUCED_FLOW_STATE);
-                }
+            }
+            /*catch (Http2Exception e)
+            {
+                
+                PlatformDependent.throwException(e);
+            }*/
+            finally
+            {
+                // Unconditionally reduce the amount of memory required for flow control because there is no
+                // object allocation costs associated with doing so and the stream will not have any more
+                // local flow control state to keep track of anymore.
+                stream.setProperty(this.stateKey, REDUCED_FLOW_STATE);
             }
         }
+        
 
         public Http2LocalFlowController frameWriter(Http2FrameWriter frameWriter)
         {

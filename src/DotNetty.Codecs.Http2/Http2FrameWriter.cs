@@ -174,7 +174,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeFrame(IChannelHandlerContext ctx, byte frameType, int streamId, Http2Flags flags, IByteBuffer payload, TaskCompletionSource promise);
+        Task writeFrame(IChannelHandlerContext ctx, Http2FrameTypes frameType, int streamId, Http2Flags flags, IByteBuffer payload, TaskCompletionSource promise);
 
         /**
            * Get the configuration related elements for this {@link Http2FrameWriter}

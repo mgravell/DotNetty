@@ -72,11 +72,9 @@ namespace DotNetty.Common.Tests.Utilities
             {
             }
 
-            public int GetPriorityQueueIndex(PriorityQueue<TestNode> queue) => this.queueIndex;
+            public int GetPriorityQueueIndex(IPriorityQueue<TestNode> queue) => this.queueIndex;
 
-            public void SetPriorityQueueIndex(PriorityQueue<TestNode> queue, int i) => this.queueIndex = i;
-
+            public void SetPriorityQueueIndex(IPriorityQueue<TestNode> queue, int i) => this.queueIndex = i;
         }
-        
     }
 }

@@ -3,6 +3,8 @@
 
 namespace DotNetty.Codecs.Http2
 {
+    using System;
+
     /**
     * An object (used by remote flow control) that is responsible for distributing the bytes to be
     * written across the streams in the connection.
@@ -44,6 +46,6 @@ namespace DotNetty.Codecs.Http2
            * @throws Http2Exception If an internal exception occurs and internal connection state would otherwise be
            * corrupted.
            */
-        bool distribute(int maxBytes, Http2StreamWriter writer);
+        bool distribute(int maxBytes, Action<Http2Stream, int> writer);
     }
 }

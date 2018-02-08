@@ -450,6 +450,38 @@ namespace DotNetty.Transport.Channels
         ///     {@code false}.
         /// </summary>
         public bool IsWritable => this.unwritable == 0;
+        
+        /// <summary>
+        /// Get how many bytes can be written until {@link #isWritable()} returns {@code false}.
+        /// This quantity will always be non-negative. If {@link #isWritable()} is {@code false} then 0.
+        /// </summary>
+        public long BytesBeforeUnwritable
+        {
+            get
+            {
+                long bytes = this.channel.Configuration.WriteBufferHighWaterMark - this.totalPendingSize;
+                // If bytes is negative we know we are not writable, but if bytes is non-negative we have to check writability.
+                // Note that totalPendingSize and isWritable() use different volatile variables that are not synchronized
+                // together. totalPendingSize will be updated before isWritable().
+                return bytes > 0 && this.IsWritable ? bytes : 0;
+            }
+        }
+
+        /// <summary>
+        /// Get how many bytes must be drained from the underlying buffer until {@link #isWritable()} returns {@code true}.
+        /// This quantity will always be non-negative. If {@link #isWritable()} is {@code true} then 0.
+        /// </summary>
+        public long BytesBeforeWritable 
+        {
+            get
+            {
+                long bytes = this.totalPendingSize - this.channel.Configuration.WriteBufferLowWaterMark;
+                // If bytes is negative we know we are writable, but if bytes is non-negative we have to check writability.
+                // Note that totalPendingSize and isWritable() use different volatile variables that are not synchronized
+                // together. totalPendingSize will be updated before isWritable().
+                return bytes > 0 && !this.IsWritable ? bytes : 0;
+            }
+        }        
 
         /// <summary>
         ///     Returns {@code true} if and only if the user-defined writability flag at the specified index is set to

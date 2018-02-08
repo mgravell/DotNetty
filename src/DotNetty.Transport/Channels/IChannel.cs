@@ -38,6 +38,18 @@ namespace DotNetty.Transport.Channels
 
         bool IsWritable { get; }
 
+        /// <summary>
+        /// Get how many bytes can be written until {@link #isWritable()} returns {@code false}.
+        /// This quantity will always be non-negative. If {@link #isWritable()} is {@code false} then 0.
+        /// </summary>
+        long BytesBeforeUnwritable { get; }
+        
+        /// <summary>
+        ///  Get how many bytes must be drained from underlying buffers until {@link #isWritable()} returns {@code true}.
+        /// This quantity will always be non-negative. If {@link #isWritable()} is {@code true} then 0.
+        /// </summary>
+        long BytesBeforeWritable { get; }
+
         IChannelUnsafe Unsafe { get; }
 
         IChannelPipeline Pipeline { get; }

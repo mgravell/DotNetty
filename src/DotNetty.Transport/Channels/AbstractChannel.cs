@@ -72,6 +72,14 @@ namespace DotNetty.Transport.Channels
                 return buf != null && buf.IsWritable;
             }
         }
+        
+        // IsWritable is currently assuming if there is no outboundBuffer then the channel is not writable.
+        // We should be consistent with that here.
+        public long BytesBeforeUnwritable => this.Unsafe.OutboundBuffer?.BytesBeforeUnwritable ?? 0;
+
+        // IsWritable is currently assuming if there is no outboundBuffer then the channel is not writable.
+        // We should be consistent with that here.
+        public long BytesBeforeWritable => this.Unsafe.OutboundBuffer?.BytesBeforeWritable ?? long.MaxValue;
 
         public IChannel Parent { get; }
 

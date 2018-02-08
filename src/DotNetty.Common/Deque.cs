@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-namespace Nito
+namespace DotNetty.Common
 {
     using System;
     using System.Collections;
@@ -9,6 +9,7 @@ namespace Nito
     using System.Diagnostics;
     using System.Linq;
     using System.Reflection;
+    using DotNetty.Common.Internal;
 
     /// <summary>
     ///     A double-ended queue (deque), which provides O(1) indexed access, O(1) removals from the front and back, amortized
@@ -18,7 +19,7 @@ namespace Nito
     /// <typeparam name="T">The type of elements contained in the deque.</typeparam>
     [DebuggerDisplay("Count = {Count}, Capacity = {Capacity}")]
     [DebuggerTypeProxy(typeof(Deque<>.DebugView))]
-    sealed class Deque<T> : IList<T>, IList
+    public class Deque<T> : IList<T>, IList, IDequeue<T>
     {
         /// <summary>
         ///     The default capacity.
@@ -100,6 +101,30 @@ namespace Nito
                 CheckExistingIndexArgument(this.Count, index);
                 this.DoSetItem(index, value);
             }
+        }
+        
+        public bool TryPeek(out T item)
+        {
+            if (this.IsEmpty)
+            {
+                item = default(T);
+                return false;
+            }
+
+            item = this[0];
+            return true;
+        }        
+        
+        public bool TryPeekLast(out T item)
+        {
+            if (this.IsEmpty)
+            {
+                item = default(T);
+                return false;
+            }
+
+            item = this[this.Count - 1];
+            return true;        
         }
 
         /// <summary>
@@ -439,7 +464,7 @@ namespace Nito
         /// <summary>
         ///     Gets a value indicating whether this instance is empty.
         /// </summary>
-        bool IsEmpty => this.Count == 0;
+        public bool IsEmpty => this.Count == 0;
 
         /// <summary>
         ///     Gets a value indicating whether this instance is at full capacity.
@@ -493,11 +518,18 @@ namespace Nito
             }
         }
 
+
+
         /// <summary>
         ///     Gets the number of elements contained in this deque.
         /// </summary>
         /// <returns>The number of elements contained in this deque.</returns>
         public int Count { get; private set; }
+
+        bool IQueue<T>.IsEmpty
+        {
+            get { return this.IsEmpty; }
+        }
 
         /// <summary>
         ///     Applies the offset to <paramref name="index" />, resulting in a buffer index.
@@ -518,7 +550,7 @@ namespace Nito
         {
             return this.buffer[this.DequeIndexToBufferIndex(index)];
         }
-
+        
         /// <summary>
         ///     Sets an element at the specified view index.
         /// </summary>
@@ -769,6 +801,13 @@ namespace Nito
             this.EnsureCapacityForOneElement();
             this.DoAddToBack(value);
         }
+        
+        
+        public bool TryEnqueue(T item)
+        {
+            this.AddToBack(item);
+            return true;
+        }
 
         /// <summary>
         ///     Inserts a single element at the front of this deque.
@@ -832,6 +871,23 @@ namespace Nito
 
             this.DoRemoveRange(offset, count);
         }
+        
+        /// <summary>
+        ///     Removes and returns the first element of this deque.
+        /// </summary>
+        /// <returns>The former first element.</returns>
+        public bool TryDequeueLast(out T item)
+        {
+            if (this.IsEmpty)
+            {
+                item = default(T);
+                return false;
+            }
+
+            item = this.DoRemoveFromBack();
+            return true;
+        }
+
 
         /// <summary>
         ///     Removes and returns the last element of this deque.
@@ -844,6 +900,23 @@ namespace Nito
                 throw new InvalidOperationException("The deque is empty.");
 
             return this.DoRemoveFromBack();
+        }
+        
+        
+        /// <summary>
+        ///     Removes and returns the first element of this deque.
+        /// </summary>
+        /// <returns>The former first element.</returns>
+        public bool TryDequeue(out T item)
+        {
+            if (this.IsEmpty)
+            {
+                item = default(T);
+                return false;
+            }
+
+            item = this.DoRemoveFromFront();
+            return true;
         }
 
         /// <summary>

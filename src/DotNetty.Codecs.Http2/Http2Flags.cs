@@ -21,7 +21,7 @@ namespace DotNetty.Codecs.Http2
 
         public const short PRIORITY = 0x20;
 
-        short value;
+        short _value;
 
         public Http2Flags()
         {
@@ -29,15 +29,15 @@ namespace DotNetty.Codecs.Http2
 
         public Http2Flags(short value)
         {
-            this.value = value;
+            this._value = value;
         }
 
         /**
          * Gets the underlying flags value.
          */
-        public short _value()
+        public short value()
         {
-            return value;
+            return _value;
         }
 
         /**

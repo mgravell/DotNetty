@@ -9,13 +9,13 @@ namespace DotNetty.Codecs.Http2
     public interface Http2StreamWriter
     {
         /**
-              * Writes the allocated bytes for this stream.
-              * <p>
-              * Any {@link Throwable} thrown from this method is considered a programming error.
-              * A {@code GOAWAY} frame will be sent and the will be connection closed.
-              * @param stream the stream for which to perform the write.
-              * @param numBytes the number of bytes to write.
-              */
+      * Writes the allocated bytes for this stream.
+      * <p>
+      * Any {@link Throwable} thrown from this method is considered a programming error.
+      * A {@code GOAWAY} frame will be sent and the will be connection closed.
+      * @param stream the stream for which to perform the write.
+      * @param numBytes the number of bytes to write.
+      */
         void write(Http2Stream stream, int numBytes);
     }
 }

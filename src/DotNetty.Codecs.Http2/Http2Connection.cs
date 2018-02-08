@@ -3,7 +3,8 @@
 
 namespace DotNetty.Codecs.Http2
 {
-    using System.Threading.Tasks;
+   using System;
+   using System.Threading.Tasks;
     using DotNetty.Buffers;
     using DotNetty.Common.Concurrency;
 
@@ -67,6 +68,8 @@ namespace DotNetty.Codecs.Http2
            * @return The stream before iteration stopped or {@code null} if iteration went past the end.
            */
         Http2Stream forEachActiveStream(Http2StreamVisitor visitor);
+       
+       Http2Stream forEachActiveStream(Func<Http2Stream, bool> visitor);
 
         /**
            * Indicates whether or not the local endpoint for this connection is the server.

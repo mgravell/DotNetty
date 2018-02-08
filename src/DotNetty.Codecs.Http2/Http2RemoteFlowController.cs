@@ -13,7 +13,7 @@ namespace DotNetty.Codecs.Http2
            * This is intended for us by {@link FlowControlled} implementations only. Use with caution.
            * @return The {@link IChannelHandlerContext} for which to apply flow control on.
            */
-        IChannelHandlerContext IChannelHandlerContext();
+        IChannelHandlerContext channelHandlerContext();
 
         /**
            * Queues a payload for transmission to the remote endpoint. There is no guarantee as to when the data

@@ -7,6 +7,10 @@
       <Project>{64508DA2-40F1-4CC3-93E8-EA3B18A64E7E}</Project>
       <Name>DotNetty.Buffers</Name>
     </ProjectReference>
+    <ProjectReference Include="..\DotNetty.Codecs.Http\DotNetty.Codecs.Http.csproj">
+      <Project>{5F68A5B1-7907-4B16-8AFE-326E9DD7D65B}</Project>
+      <Name>DotNetty.Codecs.Http</Name>
+    </ProjectReference>
     <ProjectReference Include="..\DotNetty.Codecs\DotNetty.Codecs.csproj">
       <Project>{25F7AD69-7836-46E8-9B29-0FBB3C128FFB}</Project>
       <Name>DotNetty.Codecs</Name>
