@@ -76,7 +76,7 @@ namespace DotNetty.Codecs.Http
             this.upgradeCodec = upgradeCodec;
         }
 
-        public override void Write(IChannelHandlerContext context, object message, TaskCompletionSource promise)
+        public override void Write(IChannelHandlerContext context, object message, IPromise promise)
         {
             if (!(message is IHttpRequest))
             {

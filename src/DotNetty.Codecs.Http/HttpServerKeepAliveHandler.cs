@@ -32,7 +32,7 @@ namespace DotNetty.Codecs.Http
             base.ChannelRead(context, message);
         }
 
-        public override void Write(IChannelHandlerContext context, object message, TaskCompletionSource promise)
+        public override void Write(IChannelHandlerContext context, object message, IPromise promise)
         {
             // modify message on way out to add headers if needed
             if (message is IHttpResponse response)

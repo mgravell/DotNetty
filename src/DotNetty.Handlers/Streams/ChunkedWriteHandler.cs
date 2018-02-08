@@ -39,7 +39,7 @@ namespace DotNetty.Handlers.Streams
             }
         }
 
-        public override void Write(IChannelHandlerContext context, object message, TaskCompletionSource promise)
+        public override void Write(IChannelHandlerContext context, object message, IPromise promise)
         {
             var pendingWrite = new PendingWrite(message, promise);
             this.queue.Enqueue(pendingWrite);
@@ -333,9 +333,9 @@ namespace DotNetty.Handlers.Streams
 
         sealed class PendingWrite
         {
-            readonly TaskCompletionSource promise;
+            readonly IPromise promise;
 
-            public PendingWrite(object msg, TaskCompletionSource promise)
+            public PendingWrite(object msg, IPromise promise)
             {
                 this.Message = msg;
                 this.promise = promise;

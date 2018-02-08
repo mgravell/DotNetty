@@ -6,6 +6,7 @@ namespace DotNetty.Transport.Channels
     using System;
     using System.Diagnostics.Contracts;
     using System.Net;
+    using System.Runtime.CompilerServices;
     using System.Threading.Tasks;
     using DotNetty.Buffers;
     using DotNetty.Common.Concurrency;
@@ -494,7 +495,7 @@ namespace DotNetty.Transport.Channels
 
             public Task WriteAsync(object message) => this.ctx.WriteAsync(message);
             
-            public Task WriteAsync(object message, TaskCompletionSource promise) => this.ctx.WriteAsync(message, promise);
+            public Task WriteAsync(object message, IPromise promise) => this.ctx.WriteAsync(message, promise);
 
             public IChannelHandlerContext Flush()
             {
@@ -504,12 +505,18 @@ namespace DotNetty.Transport.Channels
 
             public Task WriteAndFlushAsync(object message) => this.ctx.WriteAndFlushAsync(message);
             
-            public Task WriteAndFlushAsync(object message, TaskCompletionSource promise) => this.ctx.WriteAndFlushAsync(message, promise);
+            public Task WriteAndFlushAsync(object message, IPromise promise) => this.ctx.WriteAndFlushAsync(message, promise);
 
             public IAttribute<T> GetAttribute<T>(AttributeKey<T> key) where T : class => this.ctx.GetAttribute(key);
 
             public bool HasAttribute<T>(AttributeKey<T> key) where T : class => this.ctx.HasAttribute(key);
 
+            public IPromise NewPromise() => this.ctx.NewPromise();
+
+            public IPromise NewPromise(object state) => this.ctx.NewPromise(state);
+
+            public IPromise VoidPromise() => this.ctx.VoidPromise();
+            
             internal void Remove()
             {
                 IEventExecutor executor = this.Executor;

@@ -170,7 +170,7 @@ namespace DotNetty.Codecs.Http.Cors
 
         void SetMaxAge(IHttpResponse response) => response.Headers.Set(HttpHeaderNames.AccessControlMaxAge, this.config.MaxAge);
 
-        public override void Write(IChannelHandlerContext context, object message, TaskCompletionSource promise)
+        public override void Write(IChannelHandlerContext context, object message, IPromise promise)
         {
             if (this.config.IsCorsSupportEnabled && message is IHttpResponse response)
             {
