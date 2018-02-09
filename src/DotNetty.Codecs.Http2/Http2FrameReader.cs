@@ -19,7 +19,5 @@ namespace DotNetty.Codecs.Http2
      * Get the configuration related elements for this {@link Http2FrameReader}
      */
         Http2FrameReaderConfiguration configuration();
-
-        void close();
     }
 }

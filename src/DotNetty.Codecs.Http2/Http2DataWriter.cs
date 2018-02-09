@@ -25,6 +25,6 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeData(IChannelHandlerContext ctx, int streamId, IByteBuffer data, int padding, bool endStream, TaskCompletionSource promise);
+        Task writeData(IChannelHandlerContext ctx, int streamId, IByteBuffer data, int padding, bool endStream, IPromise promise);
     }
 }

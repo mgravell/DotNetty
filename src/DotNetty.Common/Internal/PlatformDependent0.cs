@@ -39,16 +39,77 @@ namespace DotNetty.Common.Internal
                     return false;
                 }
             }
+
             if (remainingBytes >= 2)
             {
-                return Unsafe.Read<short>(baseOffset1) == Unsafe.Read<short>(baseOffset2) 
+                return Unsafe.Read<short>(baseOffset1) == Unsafe.Read<short>(baseOffset2)
                     && (remainingBytes == 2 || *(bytes1 + 2) == *(bytes2 + 2));
             }
+
             return *baseOffset1 == *baseOffset2;
         }
 
+        internal static unsafe int ByteArrayEqualsConstantTime(byte* bytes1, byte* bytes2, int length)
+        {
+            long result = 0;
+            byte* baseOffset1 = bytes1;
+            byte* baseOffset2 = bytes2;
+            int remainingBytes = length & 7;
+            byte* end = baseOffset1 + remainingBytes;
+            for (byte* i = baseOffset1 - 8 + length, j = baseOffset2 - 8 + length; i >= end; i -= 8, j -= 8)
+            {
+                result |= Unsafe.Read<long>(i) ^ Unsafe.Read<long>(j);
+            }
+
+            switch (remainingBytes)
+            {
+                case 7:
+                    return ConstantTimeUtils.Equals(
+                        result |
+                        (Unsafe.Read<int>(baseOffset1 + 3) ^ Unsafe.Read<int>(baseOffset2 + 3)) |
+                        (Unsafe.Read<short>(baseOffset1 + 1) ^ Unsafe.Read<short>(baseOffset2 + 1)) |
+                        (Unsafe.Read<byte>(baseOffset1) ^ Unsafe.Read<byte>(baseOffset2)),
+                        0);
+                case 6:
+                    return ConstantTimeUtils.Equals(
+                        result |
+                        (Unsafe.Read<int>(baseOffset1 + 2) ^ Unsafe.Read<int>(baseOffset2 + 2)) |
+                        (Unsafe.Read<short>(baseOffset1) ^ Unsafe.Read<short>(baseOffset2)),
+                        0);
+                case 5:
+                    return ConstantTimeUtils.Equals(
+                        result |
+                        (Unsafe.Read<int>(baseOffset1 + 1) ^ Unsafe.Read<int>(baseOffset2 + 1)) |
+                        (Unsafe.Read<byte>(baseOffset1) ^ Unsafe.Read<byte>(baseOffset2)),
+                        0);
+                case 4:
+                    return ConstantTimeUtils.Equals(
+                        result |
+                        (Unsafe.Read<int>(baseOffset1) ^ Unsafe.Read<int>(baseOffset2)),
+                        0);
+                case 3:
+                    return ConstantTimeUtils.Equals(
+                        result |
+                        (Unsafe.Read<short>(baseOffset1 + 1) ^ Unsafe.Read<short>(baseOffset2 + 1)) |
+                        (Unsafe.Read<byte>(baseOffset1) ^ Unsafe.Read<byte>(baseOffset2)),
+                        0);
+                case 2:
+                    return ConstantTimeUtils.Equals(
+                        result |
+                        (Unsafe.Read<short>(baseOffset1) ^ Unsafe.Read<short>(baseOffset2)),
+                        0);
+                case 1:
+                    return ConstantTimeUtils.Equals(
+                        result |
+                        (Unsafe.Read<byte>(baseOffset1) ^ Unsafe.Read<byte>(baseOffset2)),
+                        0);
+                default:
+                    return ConstantTimeUtils.Equals(result, 0);
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static unsafe int HashCodeAscii(byte* bytes,  int length)
+        internal static unsafe int HashCodeAscii(byte* bytes, int length)
         {
             int hash = HashCodeAsciiSeed;
             int remainingBytes = length & 7;
@@ -62,7 +123,7 @@ namespace DotNetty.Common.Internal
             {
                 case 7:
                     return ((hash * HashCodeC1 + HashCodeAsciiSanitize(*bytes))
-                        * HashCodeC2 + HashCodeAsciiSanitize(Unsafe.Read<short>(bytes + 1)))
+                            * HashCodeC2 + HashCodeAsciiSanitize(Unsafe.Read<short>(bytes + 1)))
                         * HashCodeC1 + HashCodeAsciiSanitize(Unsafe.Read<int>(bytes + 3));
                 case 6:
                     return (hash * HashCodeC1 + HashCodeAsciiSanitize(Unsafe.Read<short>(bytes)))
@@ -103,7 +164,7 @@ namespace DotNetty.Common.Internal
         static int HashCodeAsciiSanitize(int value) => value & 0x1f1f1f1f;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static int HashCodeAsciiSanitize(short value) =>  value & 0x1f1f;
+        static int HashCodeAsciiSanitize(short value) => value & 0x1f1f;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static int HashCodeAsciiSanitize(byte value) => value & 0x1f;

@@ -35,7 +35,7 @@ namespace DotNetty.Codecs.Http2
            * <p>
            * If this call has <strong>NOT</strong> modified the HPACK header state you are free to throw a stream error.
            */
-        Task writeHeaders(IChannelHandlerContext ctx, int streamId, Http2Headers headers, int padding, bool endStream, TaskCompletionSource promise);
+        Task writeHeaders(IChannelHandlerContext ctx, int streamId, Http2Headers headers, int padding, bool endStream, IPromise promise);
 
         /**
            * Writes a HEADERS frame with priority specified to the remote endpoint.
@@ -60,7 +60,7 @@ namespace DotNetty.Codecs.Http2
            * <p>
            * If this call has <strong>NOT</strong> modified the HPACK header state you are free to throw a stream error.
            */
-        Task writeHeaders(IChannelHandlerContext ctx, int streamId, Http2Headers headers, int streamDependency, short weight, bool exclusive, int padding, bool endStream, TaskCompletionSource promise);
+        Task writeHeaders(IChannelHandlerContext ctx, int streamId, Http2Headers headers, int streamDependency, short weight, bool exclusive, int padding, bool endStream, IPromise promise);
 
         /**
            * Writes a PRIORITY frame to the remote endpoint.
@@ -74,7 +74,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writePriority(IChannelHandlerContext ctx, int streamId, int streamDependency, short weight, bool exclusive, TaskCompletionSource promise);
+        Task writePriority(IChannelHandlerContext ctx, int streamId, int streamDependency, short weight, bool exclusive, IPromise promise);
 
         /**
            * Writes a RST_STREAM frame to the remote endpoint.
@@ -85,7 +85,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeRstStream(IChannelHandlerContext ctx, int streamId, long errorCode, TaskCompletionSource promise);
+        Task writeRstStream(IChannelHandlerContext ctx, int streamId, long errorCode, IPromise promise);
 
         /**
            * Writes a SETTINGS frame to the remote endpoint.
@@ -95,7 +95,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeSettings(IChannelHandlerContext ctx, Http2Settings settings, TaskCompletionSource promise);
+        Task writeSettings(IChannelHandlerContext ctx, Http2Settings settings, IPromise promise);
 
         /**
            * Writes a SETTINGS acknowledgment to the remote endpoint.
@@ -104,7 +104,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeSettingsAck(IChannelHandlerContext ctx, TaskCompletionSource promise);
+        Task writeSettingsAck(IChannelHandlerContext ctx, IPromise promise);
 
         /**
            * Writes a PING frame to the remote endpoint.
@@ -116,7 +116,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writePing(IChannelHandlerContext ctx, bool ack, IByteBuffer data, TaskCompletionSource promise);
+        Task writePing(IChannelHandlerContext ctx, bool ack, IByteBuffer data, IPromise promise);
 
         /**
            * Writes a PUSH_PROMISE frame to the remote endpoint.
@@ -137,7 +137,7 @@ namespace DotNetty.Codecs.Http2
            * <p>
            * If this call has <strong>NOT</strong> modified the HPACK header state you are free to throw a stream error.
            */
-        Task writePushPromise(IChannelHandlerContext ctx, int streamId, int promisedStreamId, Http2Headers headers, int padding, TaskCompletionSource promise);
+        Task writePushPromise(IChannelHandlerContext ctx, int streamId, int promisedStreamId, Http2Headers headers, int padding, IPromise promise);
 
         /**
            * Writes a GO_AWAY frame to the remote endpoint.
@@ -149,7 +149,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeGoAway(IChannelHandlerContext ctx, int lastStreamId, long errorCode, IByteBuffer debugData, TaskCompletionSource promise);
+        Task writeGoAway(IChannelHandlerContext ctx, int lastStreamId, long errorCode, IByteBuffer debugData, IPromise promise);
 
         /**
            * Writes a WINDOW_UPDATE frame to the remote endpoint.
@@ -161,7 +161,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeWindowUpdate(IChannelHandlerContext ctx, int streamId, int windowSizeIncrement, TaskCompletionSource promise);
+        Task writeWindowUpdate(IChannelHandlerContext ctx, int streamId, int windowSizeIncrement, IPromise promise);
 
         /**
            * Generic write method for any HTTP/2 frame. This allows writing of non-standard frames.
@@ -174,7 +174,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise the promise for the write.
            * @return the future for the write.
            */
-        Task writeFrame(IChannelHandlerContext ctx, Http2FrameTypes frameType, int streamId, Http2Flags flags, IByteBuffer payload, TaskCompletionSource promise);
+        Task writeFrame(IChannelHandlerContext ctx, Http2FrameTypes frameType, int streamId, Http2Flags flags, IByteBuffer payload, IPromise promise);
 
         /**
            * Get the configuration related elements for this {@link Http2FrameWriter}

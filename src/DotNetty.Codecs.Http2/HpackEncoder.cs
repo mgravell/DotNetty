@@ -2,6 +2,8 @@ using DotNetty.Common.Utilities;
 
 namespace DotNetty.Codecs.Http2
 {
+    using DotNetty.Buffers;
+
     sealed class HpackEncoder 
     {
         // a linked hash map of header fields
@@ -46,9 +48,9 @@ namespace DotNetty.Codecs.Http2
         /**
      * Encode the header field into the header block.
      *
-     * <strong>The given {@link CharSequence}s must be immutable!</strong>
+     * <strong>The given {@link ICharSequence}s must be immutable!</strong>
      */
-        public void encodeHeaders(int streamId, ByteBuf out, Http2Headers headers, SensitivityDetector sensitivityDetector)
+        public void encodeHeaders(int streamId, IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)
          {
         if (ignoreMaxHeaderListSize) {
             encodeHeadersIgnoreMaxHeaderListSize(out, headers, sensitivityDetector);
@@ -58,13 +60,13 @@ namespace DotNetty.Codecs.Http2
     }
 
 
-    private void encodeHeadersEnforceMaxHeaderListSize(int streamId, ByteBuf out, Http2Headers headers, SensitivityDetector sensitivityDetector)
+    private void encodeHeadersEnforceMaxHeaderListSize(int streamId, IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)
      {
         long headerSize = 0;
         // To ensure we stay consistent with our peer check the size is valid before we potentially modify HPACK state.
-        foreach (Map.Entry<CharSequence, CharSequence> header in headers) {
-            CharSequence name = header.getKey();
-            CharSequence value = header.getValue();
+        foreach (Map.Entry<ICharSequence, ICharSequence> header in headers) {
+            ICharSequence name = header.getKey();
+            ICharSequence value = header.getValue();
             // OK to increment now and check for bounds after because this value is limited to unsigned int and will not
             // overflow.
             headerSize += HpackHeaderField.sizeOf(name, value);
@@ -75,11 +77,11 @@ namespace DotNetty.Codecs.Http2
         encodeHeadersIgnoreMaxHeaderListSize(@out, headers, sensitivityDetector);
     }
 
-    private void encodeHeadersIgnoreMaxHeaderListSize(ByteBuf out, Http2Headers headers, SensitivityDetector sensitivityDetector)  {
-        foreach (Map.Entry<CharSequence, CharSequence> header in headers) 
+    private void encodeHeadersIgnoreMaxHeaderListSize(IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)  {
+        foreach (Map.Entry<ICharSequence, ICharSequence> header in headers) 
         {
-            CharSequence name = header.getKey();
-            CharSequence value = header.getValue();
+            ICharSequence name = header.getKey();
+            ICharSequence value = header.getValue();
             encodeHeader(out, name, value, sensitivityDetector.isSensitive(name, value),
                          HpackHeaderField.sizeOf(name, value));
         }
@@ -88,9 +90,9 @@ namespace DotNetty.Codecs.Http2
     /**
      * Encode the header field into the header block.
      *
-     * <strong>The given {@link CharSequence}s must be immutable!</strong>
+     * <strong>The given {@link ICharSequence}s must be immutable!</strong>
      */
-    private void encodeHeader(ByteBuf @out, CharSequence name, CharSequence value, bool sensitive, long headerSize) {
+    private void encodeHeader(ByteBuf @out, ICharSequence name, ICharSequence value, bool sensitive, long headerSize) {
         // If the header value is sensitive then it must never be indexed
         if (sensitive) {
             int nameIndex = getNameIndex(name);
@@ -138,7 +140,7 @@ namespace DotNetty.Codecs.Http2
     /**
      * Set the maximum table size.
      */
-    public void setMaxHeaderTableSize(ByteBuf out, long maxHeaderTableSize)  {
+    public void setMaxHeaderTableSize(IByteBuffer output, long maxHeaderTableSize)  {
         if (maxHeaderTableSize < MIN_HEADER_TABLE_SIZE || maxHeaderTableSize > MAX_HEADER_TABLE_SIZE) {
             throw connectionError(PROTOCOL_ERROR, "Header Table Size must be >= %d and <= %d but was %d",
                     MIN_HEADER_TABLE_SIZE, MAX_HEADER_TABLE_SIZE, maxHeaderTableSize);
@@ -174,14 +176,14 @@ namespace DotNetty.Codecs.Http2
     /**
      * Encode integer according to <a href="https://tools.ietf.org/html/rfc7541#section-5.1">Section 5.1</a>.
      */
-    private static void encodeInteger(ByteBuf out, int mask, int n, int i) {
+    private static void encodeInteger(IByteBuffer output, int mask, int n, int i) {
         encodeInteger(out, mask, n, (long) i);
     }
 
     /**
      * Encode integer according to <a href="https://tools.ietf.org/html/rfc7541#section-5.1">Section 5.1</a>.
      */
-    private static void encodeInteger(ByteBuf out, int mask, int n, long i) {
+    private static void encodeInteger(IByteBuffer output, int mask, int n, long i) {
         assert n >= 0 && n <= 8 : "N: " + n;
         int nbits = 0xFF >>> (8 - n);
         if (i < nbits) {
@@ -199,7 +201,7 @@ namespace DotNetty.Codecs.Http2
     /**
      * Encode string literal according to Section 5.2.
      */
-    private void encodeStringLiteral(ByteBuf out, CharSequence string) {
+    private void encodeStringLiteral(IByteBuffer output, ICharSequence string) {
         int huffmanLength = hpackHuffmanEncoder.getEncodedLength(string);
         if (huffmanLength < string.length()) {
             encodeInteger(out, 0x80, 7, huffmanLength);
@@ -221,7 +223,7 @@ namespace DotNetty.Codecs.Http2
     /**
      * Encode literal header field according to Section 6.2.
      */
-    private void encodeLiteral(ByteBuf out, CharSequence name, CharSequence value, IndexType indexType,
+    private void encodeLiteral(IByteBuffer output, ICharSequence name, ICharSequence value, IndexType indexType,
                                int nameIndex) {
         bool nameIndexValid = nameIndex != -1;
         switch (indexType) {
@@ -243,7 +245,7 @@ namespace DotNetty.Codecs.Http2
         encodeStringLiteral(out, value);
     }
 
-    private int getNameIndex(CharSequence name) {
+    private int getNameIndex(ICharSequence name) {
         int index = HpackStaticTable.getIndex(name);
         if (index == -1) {
             index = getIndex(name);
@@ -297,7 +299,7 @@ namespace DotNetty.Codecs.Http2
      * Returns the header entry with the lowest index value for the header field. Returns null if
      * header field is not in the dynamic table.
      */
-    private HeaderEntry getEntry(CharSequence name, CharSequence value) {
+    private HeaderEntry getEntry(ICharSequence name, ICharSequence value) {
         if (length() == 0 || name == null || value == null) {
             return null;
         }
@@ -316,7 +318,7 @@ namespace DotNetty.Codecs.Http2
      * Returns the lowest index value for the header field name in the dynamic table. Returns -1 if
      * the header field name is not in the dynamic table.
      */
-    private int getIndex(CharSequence name) {
+    private int getIndex(ICharSequence name) {
         if (length() == 0 || name == null) {
             return -1;
         }
@@ -342,7 +344,7 @@ namespace DotNetty.Codecs.Http2
      * the size of the table and the new header field is less than the table's maxHeaderTableSize. If the size
      * of the new entry is larger than the table's maxHeaderTableSize, the dynamic table will be cleared.
      */
-    private void add(CharSequence name, CharSequence value, long headerSize) {
+    private void add(ICharSequence name, ICharSequence value, long headerSize) {
         // Clear the table if the header field size is larger than the maxHeaderTableSize.
         if (headerSize > maxHeaderTableSize) {
             clear();
@@ -412,7 +414,7 @@ namespace DotNetty.Codecs.Http2
     /**
      * A linked hash map HpackHeaderField entry.
      */
-    private static final class HeaderEntry extends HpackHeaderField {
+    private static final class HeaderEntry : HpackHeaderField {
         // These fields comprise the doubly linked list used for iteration.
         HeaderEntry before, after;
 
@@ -426,7 +428,7 @@ namespace DotNetty.Codecs.Http2
         /**
          * Creates new entry.
          */
-        HeaderEntry(int hash, CharSequence name, CharSequence value, int index, HeaderEntry next) {
+        HeaderEntry(int hash, ICharSequence name, ICharSequence value, int index, HeaderEntry next) {
             super(name, value);
             this.index = index;
             this.hash = hash;

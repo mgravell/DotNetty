@@ -61,7 +61,7 @@ namespace DotNetty.Codecs.Http2
 
         static readonly INameValidator<ICharSequence> HTTP2_NAME_VALIDATOR = new Http2NameValidator();
 
-        HeaderEntry<ICharSequence, ICharSequence> firstNonPseudo = head;
+        HeaderEntry<ICharSequence, ICharSequence> firstNonPseudo;
 
         /**
      * Create a new instance.
@@ -84,6 +84,7 @@ namespace DotNetty.Codecs.Http2
         {
             // Case sensitive compare is used because it is cheaper, and header validation can be used to catch invalid
             // headers.
+            this.firstNonPseudo = this.head;
         }
 
         /**
@@ -98,6 +99,7 @@ namespace DotNetty.Codecs.Http2
         {
             // Case sensitive compare is used because it is cheaper, and header validation can be used to catch invalid
             // headers.
+            this.firstNonPseudo = this.head;
         }
 
         public override IHeaders<ICharSequence, ICharSequence> Clear()

@@ -37,7 +37,7 @@ namespace DotNetty.Codecs.Http2
          */
         public short value()
         {
-            return _value;
+            return this._value;
         }
 
         /**
@@ -91,7 +91,7 @@ namespace DotNetty.Codecs.Http2
          */
         public int getNumPriorityBytes()
         {
-            return priorityPresent() ? 5 : 0;
+            return this.priorityPresent() ? 5 : 0;
         }
 
         /**
@@ -153,11 +153,11 @@ namespace DotNetty.Codecs.Http2
         {
             if (on)
             {
-                this.value |= mask;
+                this._value |= mask;
             }
             else
             {
-                this.value = (short)(this.value & ~mask);
+                this._value = (short)(this._value & ~mask);
             }
 
             return this;
@@ -170,14 +170,14 @@ namespace DotNetty.Codecs.Http2
          */
         public bool isFlagSet(short mask)
         {
-            return (value & mask) != 0;
+            return (this._value & mask) != 0;
         }
 
         public override int GetHashCode()
         {
             int prime = 31;
             int result = 1;
-            result = prime * result + value;
+            result = prime * result + this._value;
             return result;
         }
 
@@ -198,13 +198,13 @@ namespace DotNetty.Codecs.Http2
                 return false;
             }
 
-            return value == ((Http2Flags)obj).value;
+            return this._value == ((Http2Flags)obj)._value;
         }
 
         public override string ToString()
         {
             StringBuilder builder = new StringBuilder();
-            builder.Append("value = ").Append(value).Append(" (");
+            builder.Append("value = ").Append(this._value).Append(" (");
             if (this.ack())
             {
                 builder.Append("ACK,");

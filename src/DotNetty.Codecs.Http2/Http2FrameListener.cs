@@ -25,12 +25,7 @@ namespace DotNetty.Codecs.Http2
            * {@link Http2LocalFlowController#consumeBytes(Http2Stream, int)}. The returned value must
            * be >= {@code 0} and <= {@code data.readableBytes()} + {@code padding}.
            */
-        int onDataRead(
-            IChannelHandlerContext ctx,
-            int streamId,
-            IByteBuffer data,
-            int padding,
-            bool endOfStream);
+        int onDataRead(IChannelHandlerContext ctx, int streamId, IByteBuffer data, int padding, bool endOfStream);
 
         /**
            * Handles an inbound {@code HEADERS} frame.
@@ -54,12 +49,7 @@ namespace DotNetty.Codecs.Http2
            * @param endOfStream Indicates whether this is the last frame to be sent from the remote endpoint
            *            for this stream.
            */
-        void onHeadersRead(
-            IChannelHandlerContext ctx,
-            int streamId,
-            Http2Headers headers,
-            int padding,
-            bool endOfStream);
+        void onHeadersRead(IChannelHandlerContext ctx, int streamId, Http2Headers headers, int padding, bool endOfStream);
 
         /**
            * Handles an inbound {@code HEADERS} frame with priority information specified.
@@ -88,15 +78,7 @@ namespace DotNetty.Codecs.Http2
            * @param endOfStream Indicates whether this is the last frame to be sent from the remote endpoint
            *            for this stream.
            */
-        void onHeadersRead(
-            IChannelHandlerContext ctx,
-            int streamId,
-            Http2Headers headers,
-            int streamDependency,
-            short weight,
-            bool exclusive,
-            int padding,
-            bool endOfStream);
+        void onHeadersRead(IChannelHandlerContext ctx, int streamId, Http2Headers headers, int streamDependency, short weight, bool exclusive, int padding, bool endOfStream);
 
         /**
            * Handles an inbound {@code PRIORITY} frame.
@@ -112,12 +94,7 @@ namespace DotNetty.Codecs.Http2
            * @param weight the new weight for the stream.
            * @param exclusive whether or not the stream should be the exclusive dependent of its parent.
            */
-        void onPriorityRead(
-            IChannelHandlerContext ctx,
-            int streamId,
-            int streamDependency,
-            short weight,
-            bool exclusive);
+        void onPriorityRead(IChannelHandlerContext ctx, int streamId, int streamDependency, short weight, bool exclusive);
 
         /**
            * Handles an inbound {@code RST_STREAM} frame.
@@ -184,12 +161,7 @@ namespace DotNetty.Codecs.Http2
            * @param padding additional bytes that should be added to obscure the true content size. Must be between 0 and
            *                256 (inclusive).
            */
-        void onPushPromiseRead(
-            IChannelHandlerContext ctx,
-            int streamId,
-            int promisedStreamId,
-            Http2Headers headers,
-            int padding);
+        void onPushPromiseRead(IChannelHandlerContext ctx, int streamId, int promisedStreamId, Http2Headers headers, int padding);
 
         /**
            * Handles an inbound {@code GO_AWAY} frame.
@@ -221,6 +193,6 @@ namespace DotNetty.Codecs.Http2
            * @param flags the flags in the frame header.
            * @param payload the payload of the frame.
            */
-        void onUnknownFrame(IChannelHandlerContext ctx, byte frameType, int streamId, Http2Flags flags, IByteBuffer payload);
+        void onUnknownFrame(IChannelHandlerContext ctx, Http2FrameTypes frameType, int streamId, Http2Flags flags, IByteBuffer payload);
     }
 }

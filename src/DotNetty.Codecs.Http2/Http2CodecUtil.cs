@@ -133,7 +133,7 @@ namespace DotNetty.Codecs.Http2
 
         public static readonly int DEFAULT_MIN_ALLOCATION_CHUNK = 1024;
 
-        static readonly int DEFAULT_INITIAL_HUFFMAN_DECODE_CAPACITY = 32;
+        public static readonly int DEFAULT_INITIAL_HUFFMAN_DECODE_CAPACITY = 32;
 
         /**
      * Return a unreleasable view on the given {@link ByteBuf} which will just ignore release and retain calls.
@@ -168,15 +168,50 @@ namespace DotNetty.Codecs.Http2
                 throw new ArgumentException($"Invalid padding '{padding}'. Padding must be between 0 and {MAX_PADDING} (inclusive).");
             }
         }
-        
+
+        /**
+         * Results in a RST_STREAM being sent for {@code streamId} due to violating
+         * <a href="https://tools.ietf.org/html/rfc7540#section-6.5.2">SETTINGS_MAX_HEADER_LIST_SIZE</a>.
+         * @param streamId The stream ID that was being processed when the exceptional condition occurred.
+         * @param maxHeaderListSize The max allowed size for a list of headers in bytes which was exceeded.
+         * @param onDecode {@code true} if the exception was encountered during decoder. {@code false} for encode.
+         * @a stream error.
+         */
+        public static void headerListSizeExceeded(int streamId, long maxHeaderListSize, bool onDecode)
+        {
+            throw Http2Exception.headerListSizeError(streamId, Http2Error.PROTOCOL_ERROR, onDecode, "Header size exceeded max " + "allowed size ({0})", maxHeaderListSize);
+        }
+
+        /**
+         * Results in a GO_AWAY being sent due to violating
+         * <a href="https://tools.ietf.org/html/rfc7540#section-6.5.2">SETTINGS_MAX_HEADER_LIST_SIZE</a> in an unrecoverable
+         * manner.
+         * @param maxHeaderListSize The max allowed size for a list of headers in bytes which was exceeded.
+         * @a connection error.
+         */
+        public static void headerListSizeExceeded(long maxHeaderListSize)
+        {
+            throw Http2Exception.connectionError(Http2Error.PROTOCOL_ERROR, "Header size exceeded max " + "allowed size ({0})", maxHeaderListSize);
+        }
+
         /**
          * Calculate the amount of bytes that can be sent by {@code state}. The lower bound is {@code 0}.
          */
-        public static int streamableBytes(StreamByteDistributorContext state) {
-            return Math.Max(0, (int) Math.Min(state.pendingBytes(), state.windowSize()));
+        public static int streamableBytes(StreamByteDistributorContext state)
+        {
+            return Math.Max(0, (int)Math.Min(state.pendingBytes(), state.windowSize()));
         }
-        
-        internal static void writeFrameHeaderInternal(IByteBuffer output, int payloadLength, Http2FrameTypes type, Http2Flags flags, int streamId) {
+
+        /**
+         * Reads a big-endian (31-bit) integer from the buffer.
+         */
+        public static int readUnsignedInt(IByteBuffer buf)
+        {
+            return buf.ReadInt() & 0x7fffffff;
+        }
+
+        internal static void writeFrameHeaderInternal(IByteBuffer output, int payloadLength, Http2FrameTypes type, Http2Flags flags, int streamId)
+        {
             output.WriteMedium(payloadLength);
             output.WriteByte((byte)type);
             output.WriteByte(flags.value());

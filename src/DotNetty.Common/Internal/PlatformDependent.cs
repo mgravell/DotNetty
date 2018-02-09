@@ -57,6 +57,13 @@ namespace DotNetty.Common.Internal
                 fixed (byte* array2 = &bytes2[startPos2])
                     return PlatformDependent0.ByteArrayEquals(array1, array2, length);
         }
+        
+        public static unsafe int ByteArrayEqualsConstantTime(byte[] bytes1, int startPos1, byte[] bytes2, int startPos2, int length)
+        {
+            fixed (byte* array1 = &bytes1[startPos1])
+            fixed (byte* array2 = &bytes2[startPos2])
+                return PlatformDependent0.ByteArrayEqualsConstantTime(array1, array2, length);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe int HashCodeAscii(byte[] bytes, int startPos, int length)
