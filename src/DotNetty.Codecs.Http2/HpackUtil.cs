@@ -50,7 +50,7 @@ namespace DotNetty.Codecs.Http2
 
         // Appendix B: Huffman Codes
         // http://tools.ietf.org/html/rfc7541#appendix-B
-        static readonly int[] HUFFMAN_CODES =
+        internal static readonly int[] HUFFMAN_CODES =
         {
             0x1ff8,
             0x7fffd8,
@@ -311,7 +311,7 @@ namespace DotNetty.Codecs.Http2
             0x3fffffff // EOS
         };
 
-        static readonly byte[] HUFFMAN_CODE_LENGTHS =
+        internal static readonly byte[] HUFFMAN_CODE_LENGTHS =
         {
             13, 23, 28, 28, 28, 28, 28, 28, 28, 24, 30, 28, 28, 30, 28, 28,
             28, 28, 28, 28, 28, 28, 30, 28, 28, 28, 28, 28, 28, 28, 28, 28,
@@ -332,6 +332,6 @@ namespace DotNetty.Codecs.Http2
             30 // EOS
         };
 
-        static readonly int HUFFMAN_EOS = 256;
+        internal static readonly int HUFFMAN_EOS = 256;
     }
 }

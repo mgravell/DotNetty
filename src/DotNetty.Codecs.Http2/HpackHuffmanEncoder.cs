@@ -1,194 +1,208 @@
-/*
- * Copyright 2015 The Netty Project
- *
- * The Netty Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
+// Copyright (c) Microsoft. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-/*
- * Copyright 2014 Twitter, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-package io.netty.handler.codec.http2;
+namespace DotNetty.Codecs.Http2
+{
+    using System;
+    using System.Diagnostics.Contracts;
+    using DotNetty.Buffers;
+    using DotNetty.Common.Utilities;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.util.AsciiString;
-import io.netty.util.ByteProcessor;
-import io.netty.util.internal.ObjectUtil;
-import io.netty.util.internal.PlatformDependent;
+    sealed class HpackHuffmanEncoder
+    {
+        readonly int[] codes;
+        readonly byte[] lengths;
+        readonly EncodedLengthProcessor encodedLengthProcessor;
+        readonly EncodeProcessor encodeProcessor;
 
-final class HpackHuffmanEncoder {
+        HpackHuffmanEncoder()
+            : this(HpackUtil.HUFFMAN_CODES, HpackUtil.HUFFMAN_CODE_LENGTHS)
+        {
+        }
 
-    private final int[] codes;
-    private final byte[] lengths;
-    private final EncodedLengthProcessor encodedLengthProcessor = new EncodedLengthProcessor();
-    private final EncodeProcessor encodeProcessor = new EncodeProcessor();
-
-    HpackHuffmanEncoder() {
-        this(HpackUtil.HUFFMAN_CODES, HpackUtil.HUFFMAN_CODE_LENGTHS);
-    }
-
-    /**
+        /**
      * Creates a new Huffman encoder with the specified Huffman coding.
      *
      * @param codes the Huffman codes indexed by symbol
      * @param lengths the length of each Huffman code
      */
-    private HpackHuffmanEncoder(int[] codes, byte[] lengths) {
-        this.codes = codes;
-        this.lengths = lengths;
-    }
+        HpackHuffmanEncoder(int[] codes, byte[] lengths)
+        {
+            this.encodedLengthProcessor = new EncodedLengthProcessor(this);
+            this.encodeProcessor = new EncodeProcessor(this);
+            this.codes = codes;
+            this.lengths = lengths;
+        }
 
-    /**
+        /**
      * Compresses the input string literal using the Huffman coding.
      *
-     * @param out the output stream for the compressed data
+     * @param ouput the output stream for the compressed data
      * @param data the string literal to be Huffman encoded
      */
-    public void encode(ByteBuf out, CharSequence data) {
-        ObjectUtil.checkNotNull(out, "out");
-        if (data instanceof AsciiString) {
-            AsciiString string = (AsciiString) data;
-            try {
-                encodeProcessor.out = out;
-                string.forEachByte(encodeProcessor);
-            } catch (Exception e) {
-                PlatformDependent.throwException(e);
-            } finally {
-                encodeProcessor.end();
+        public void encode(IByteBuffer ouput, ICharSequence data)
+        {
+            Contract.Requires(ouput != null);
+            if (data is AsciiString str)
+            {
+                try
+                {
+                    this.encodeProcessor.ouput = ouput;
+                    str.ForEachByte(this.encodeProcessor);
+                }
+                finally
+                {
+                    this.encodeProcessor.end();
+                }
             }
-        } else {
-            encodeSlowPath(out, data);
-        }
-    }
-
-    private void encodeSlowPath(ByteBuf out, CharSequence data) {
-        long current = 0;
-        int n = 0;
-
-        for (int i = 0; i < data.length(); i++) {
-            int b = data.charAt(i) & 0xFF;
-            int code = codes[b];
-            int nbits = lengths[b];
-
-            current <<= nbits;
-            current |= code;
-            n += nbits;
-
-            while (n >= 8) {
-                n -= 8;
-                out.writeByte((int) (current >> n));
+            else
+            {
+                this.encodeSlowPath(ouput, data);
             }
         }
 
-        if (n > 0) {
-            current <<= 8 - n;
-            current |= 0xFF >>> n; // this should be EOS symbol
-            out.writeByte((int) current);
-        }
-    }
+        void encodeSlowPath(IByteBuffer ouput, ICharSequence data)
+        {
+            long current = 0;
+            int n = 0;
 
-    /**
+            for (int i = 0; i < data.Count; i++)
+            {
+                int b = data[i] & 0xFF;
+                int code = this.codes[b];
+                int nbits = this.lengths[b];
+
+                current <<= nbits;
+                current |= code;
+                n += nbits;
+
+                while (n >= 8)
+                {
+                    n -= 8;
+                    ouput.WriteByte((int)(current >> n));
+                }
+            }
+
+            if (n > 0)
+            {
+                current <<= 8 - n;
+                current |= 0xFF >> n; // this should be EOS symbol
+                ouput.WriteByte((int)current);
+            }
+        }
+
+        /**
      * Returns the number of bytes required to Huffman encode the input string literal.
      *
      * @param data the string literal to be Huffman encoded
      * @return the number of bytes required to Huffman encode {@code data}
      */
-    int getEncodedLength(CharSequence data) {
-        if (data instanceof AsciiString) {
-            AsciiString string = (AsciiString) data;
-            try {
-                encodedLengthProcessor.reset();
-                string.forEachByte(encodedLengthProcessor);
-                return encodedLengthProcessor.length();
-            } catch (Exception e) {
-                PlatformDependent.throwException(e);
-                return -1;
-            }
-        } else {
-            return getEncodedLengthSlowPath(data);
-        }
-    }
-
-    private int getEncodedLengthSlowPath(CharSequence data) {
-        long len = 0;
-        for (int i = 0; i < data.length(); i++) {
-            len += lengths[data.charAt(i) & 0xFF];
-        }
-        return (int) ((len + 7) >> 3);
-    }
-
-    private final class EncodeProcessor implements ByteProcessor {
-        ByteBuf out;
-        private long current;
-        private int n;
-
-        @Override
-        public boolean process(byte value) {
-            int b = value & 0xFF;
-            int nbits = lengths[b];
-
-            current <<= nbits;
-            current |= codes[b];
-            n += nbits;
-
-            while (n >= 8) {
-                n -= 8;
-                out.writeByte((int) (current >> n));
-            }
-            return true;
-        }
-
-        void end() {
-            try {
-                if (n > 0) {
-                    current <<= 8 - n;
-                    current |= 0xFF >>> n; // this should be EOS symbol
-                    out.writeByte((int) current);
+        int getEncodedLength(ICharSequence data)
+        {
+            if (data is AsciiString str)
+            {
+                try
+                {
+                    this.encodedLengthProcessor.reset();
+                    str.ForEachByte(this.encodedLengthProcessor);
+                    return this.encodedLengthProcessor.Count;
                 }
-            } finally {
-                out = null;
-                current = 0;
-                n = 0;
+                catch (Exception e)
+                {
+                    throw;
+                    ;
+                    return -1;
+                }
+            }
+            else
+            {
+                return this.getEncodedLengthSlowPath(data);
             }
         }
-    }
 
-    private final class EncodedLengthProcessor implements ByteProcessor {
-        private long len;
+        int getEncodedLengthSlowPath(ICharSequence data)
+        {
+            long len = 0;
+            for (int i = 0; i < data.Count; i++)
+            {
+                len += this.lengths[data[i] & 0xFF];
+            }
 
-        @Override
-        public boolean process(byte value) {
-            len += lengths[value & 0xFF];
-            return true;
+            return (int)((len + 7) >> 3);
         }
 
-        void reset() {
-            len = 0;
+        sealed class EncodeProcessor : IByteProcessor
+        {
+            readonly HpackHuffmanEncoder encoder;
+            internal IByteBuffer ouput;
+            long current;
+            int n;
+
+            public EncodeProcessor(HpackHuffmanEncoder encoder)
+            {
+                this.encoder = encoder;
+            }
+
+            public bool Process(byte value)
+            {
+                int b = value & 0xFF;
+                int nbits = this.encoder.lengths[b];
+
+                this.current <<= nbits;
+                this.current |= this.encoder.codes[b];
+                this.n += nbits;
+
+                while (this.n >= 8)
+                {
+                    this.n -= 8;
+                    this.ouput.WriteByte((int)(this.current >> this.n));
+                }
+
+                return true;
+            }
+
+            internal void end()
+            {
+                try
+                {
+                    if (this.n > 0)
+                    {
+                        this.current <<= 8 - this.n;
+                        this.current |= 0xFF >> this.n; // this should be EOS symbol
+                        this.ouput.WriteByte((int)this.current);
+                    }
+                }
+                finally
+                {
+                    this.ouput = null;
+                    this.current = 0;
+                    this.n = 0;
+                }
+            }
         }
 
-        int length() {
-            return (int) ((len + 7) >> 3);
+        sealed class EncodedLengthProcessor : IByteProcessor
+        {
+            readonly HpackHuffmanEncoder encoder;
+            long len;
+
+            public EncodedLengthProcessor(HpackHuffmanEncoder encoder)
+            {
+                this.encoder = encoder;
+            }
+
+            public bool Process(byte value)
+            {
+                this.len += this.encoder.lengths[value & 0xFF];
+                return true;
+            }
+
+            internal void reset()
+            {
+                this.len = 0;
+            }
+
+            internal int Count => (int)((this.len + 7) >> 3);
         }
     }
 }

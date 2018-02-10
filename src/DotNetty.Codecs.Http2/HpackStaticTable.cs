@@ -105,7 +105,7 @@ namespace DotNetty.Codecs.Http2
      */
         static int getIndex(ICharSequence name)
         {
-            int index = STATIC_INDEX_BY_NAME.get(name);
+            int index = STATIC_INDEX_BY_NAME.Get(name);
             if (index == null)
             {
                 return -1;
@@ -149,18 +149,15 @@ namespace DotNetty.Codecs.Http2
         // create a map CharSequenceMap header name to index value to allow quick lookup
         static CharSequenceMap<int> createMap()
         {
-            int length = STATIC_TABLE.size();
-            @SuppressWarnings("unchecked")
-            CharSequenceMap<int> ret = new CharSequenceMap<int>(true,
-                    UnsupportedValueConverter. < int > instance(),
-                length);
+            int length = STATIC_TABLE.Length;
+            CharSequenceMap<int> ret = new CharSequenceMap<int>(true, UnsupportedValueConverter<int>.Instance, length);
             // Iterate through the static table in reverse order to
             // save the smallest index for a given name in the map.
             for (int index = length; index > 0; index--)
             {
                 HpackHeaderField entry = getEntry(index);
                 ICharSequence name = entry.name;
-                ret.set(name, index);
+                ret.Set(name, index);
             }
 
             return ret;
