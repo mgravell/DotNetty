@@ -41,7 +41,7 @@ namespace DotNetty.Codecs.Http2
         }
 
         // Section 6.2. Literal Header Field Representation
-        enum IndexType
+        internal enum IndexType
         {
             INCREMENTAL, // Section 6.2.1. Literal Header Field with Incremental Indexing
             NONE, // Section 6.2.2. Literal Header Field without Indexing

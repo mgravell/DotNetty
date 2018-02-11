@@ -1,48 +1,58 @@
-using DotNetty.Common.Utilities;
+// Copyright (c) Microsoft. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 namespace DotNetty.Codecs.Http2
 {
+    using System;
+    using System.Diagnostics.Contracts;
+    using System.Text;
     using DotNetty.Buffers;
+    using DotNetty.Common.Internal;
+    using DotNetty.Common.Utilities;
 
-    sealed class HpackEncoder 
+    sealed class HpackEncoder
     {
+        static readonly Encoding Enc = Encoding.GetEncoding("ISO-8859-1");
+
         // a linked hash map of header fields
         readonly HeaderEntry[] headerFields;
         readonly HeaderEntry head = new HeaderEntry(-1, AsciiString.Empty, AsciiString.Empty, int.MaxValue, null);
         readonly HpackHuffmanEncoder hpackHuffmanEncoder = new HpackHuffmanEncoder();
         readonly byte hashMask;
         readonly bool ignoreMaxHeaderListSize;
-        private long size;
-        private long maxHeaderTableSize;
-        private long maxHeaderListSize;
+        long _size;
+        long _maxHeaderTableSize;
+        long maxHeaderListSize;
 
         /**
      * Creates a new encoder.
      */
-        HpackEncoder() : this(false) {
-            
-        }
-
-        /**
-     * Creates a new encoder.
-     */
-        public HpackEncoder(bool ignoreMaxHeaderListSize) : this(ignoreMaxHeaderListSize, 16)
+        internal HpackEncoder()
+            : this(false)
         {
-            
         }
 
         /**
      * Creates a new encoder.
      */
-        public HpackEncoder(bool ignoreMaxHeaderListSize, int arraySizeHint) {
+        public HpackEncoder(bool ignoreMaxHeaderListSize)
+            : this(ignoreMaxHeaderListSize, 16)
+        {
+        }
+
+        /**
+     * Creates a new encoder.
+     */
+        public HpackEncoder(bool ignoreMaxHeaderListSize, int arraySizeHint)
+        {
             this.ignoreMaxHeaderListSize = ignoreMaxHeaderListSize;
-            this.maxHeaderTableSize = DEFAULT_HEADER_TABLE_SIZE;
-            this.maxHeaderListSize = DEFAULT_HEADER_LIST_SIZE;
+            this._maxHeaderTableSize = Http2CodecUtil.DEFAULT_HEADER_TABLE_SIZE;
+            this.maxHeaderListSize = Http2CodecUtil.DEFAULT_HEADER_LIST_SIZE;
             // Enforce a bound of [2, 128] because hashMask is a byte. The max possible value of hashMask is one less
             // than the length of this array, and we want the mask to be > 0.
-            headerFields = new HeaderEntry<,>[findNextPositivePowerOfTwo(max(2, min(arraySizeHint, 128)))];
-            this.hashMask = (byte) (headerFields.length - 1);
-            head.before = head.after = head;
+            this.headerFields = new HeaderEntry[MathUtil.FindNextPositivePowerOfTwo(Math.Max(2, Math.Min(arraySizeHint, 128)))];
+            this.hashMask = (byte)(this.headerFields.Length - 1);
+            this.head.before = this.head.after = this.head;
         }
 
         /**
@@ -51,409 +61,512 @@ namespace DotNetty.Codecs.Http2
      * <strong>The given {@link ICharSequence}s must be immutable!</strong>
      */
         public void encodeHeaders(int streamId, IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)
-         {
-        if (ignoreMaxHeaderListSize) {
-            encodeHeadersIgnoreMaxHeaderListSize(out, headers, sensitivityDetector);
-        } else {
-            encodeHeadersEnforceMaxHeaderListSize(streamId, out, headers, sensitivityDetector);
-        }
-    }
-
-
-    private void encodeHeadersEnforceMaxHeaderListSize(int streamId, IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)
-     {
-        long headerSize = 0;
-        // To ensure we stay consistent with our peer check the size is valid before we potentially modify HPACK state.
-        foreach (Map.Entry<ICharSequence, ICharSequence> header in headers) {
-            ICharSequence name = header.getKey();
-            ICharSequence value = header.getValue();
-            // OK to increment now and check for bounds after because this value is limited to unsigned int and will not
-            // overflow.
-            headerSize += HpackHeaderField.sizeOf(name, value);
-            if (headerSize > maxHeaderListSize) {
-                headerListSizeExceeded(streamId, maxHeaderListSize, false);
-            }
-        }
-        encodeHeadersIgnoreMaxHeaderListSize(@out, headers, sensitivityDetector);
-    }
-
-    private void encodeHeadersIgnoreMaxHeaderListSize(IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)  {
-        foreach (Map.Entry<ICharSequence, ICharSequence> header in headers) 
         {
-            ICharSequence name = header.getKey();
-            ICharSequence value = header.getValue();
-            encodeHeader(out, name, value, sensitivityDetector.isSensitive(name, value),
-                         HpackHeaderField.sizeOf(name, value));
-        }
-    }
-
-    /**
-     * Encode the header field into the header block.
-     *
-     * <strong>The given {@link ICharSequence}s must be immutable!</strong>
-     */
-    private void encodeHeader(ByteBuf @out, ICharSequence name, ICharSequence value, bool sensitive, long headerSize) {
-        // If the header value is sensitive then it must never be indexed
-        if (sensitive) {
-            int nameIndex = getNameIndex(name);
-            encodeLiteral(@out, name, value, IndexType.NEVER, nameIndex);
-            return;
-        }
-
-        // If the peer will only use the static table
-        if (maxHeaderTableSize == 0) {
-            int staticTableIndex = HpackStaticTable.getIndex(name, value);
-            if (staticTableIndex == -1) {
-                int nameIndex = HpackStaticTable.getIndex(name);
-                encodeLiteral(@out, name, value, IndexType.NONE, nameIndex);
-            } else {
-                encodeInteger(@out, 0x80, 7, staticTableIndex);
+            if (this.ignoreMaxHeaderListSize)
+            {
+                this.encodeHeadersIgnoreMaxHeaderListSize(output, headers, sensitivityDetector);
             }
-            return;
+            else
+            {
+                this.encodeHeadersEnforceMaxHeaderListSize(streamId, output, headers, sensitivityDetector);
+            }
         }
 
-        // If the headerSize is greater than the max table size then it must be encoded literally
-        if (headerSize > maxHeaderTableSize) {
-            int nameIndex = getNameIndex(name);
-            encodeLiteral(@out, name, value, IndexType.NONE, nameIndex);
-            return;
+        void encodeHeadersEnforceMaxHeaderListSize(int streamId, IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)
+        {
+            long headerSize = 0;
+            // To ensure we stay consistent with our peer check the _size is valid before we potentially modify HPACK state.
+            foreach (HeaderEntry<ICharSequence, ICharSequence> header in headers)
+            {
+                ICharSequence name = header.Key;
+                ICharSequence value = header.Value;
+                // OK to increment now and check for bounds after because this value is limited to unsigned int and will not
+                // overflow.
+                headerSize += HpackHeaderField.sizeOf(name, value);
+                if (headerSize > this.maxHeaderListSize)
+                {
+                    Http2CodecUtil.headerListSizeExceeded(streamId, this.maxHeaderListSize, false);
+                }
+            }
+
+            this.encodeHeadersIgnoreMaxHeaderListSize(@output, headers, sensitivityDetector);
         }
 
-        HeaderEntry headerField = getEntry(name, value);
-        if (headerField != null) {
-            int index = getIndex(headerField.index) + HpackStaticTable.length;
-            // Section 6.1. Indexed Header Field Representation
-            encodeInteger(@out, 0x80, 7, index);
-        } else {
-            int staticTableIndex = HpackStaticTable.getIndex(name, value);
-            if (staticTableIndex != -1) {
+        void encodeHeadersIgnoreMaxHeaderListSize(IByteBuffer output, Http2Headers headers, SensitivityDetector sensitivityDetector)
+        {
+            foreach (HeaderEntry<ICharSequence, ICharSequence> header in headers)
+            {
+                ICharSequence name = header.Key;
+                ICharSequence value = header.Value;
+                this.encodeHeader(output, name, value, sensitivityDetector.isSensitive(name, value), HpackHeaderField.sizeOf(name, value));
+            }
+        }
+
+        /**
+         * Encode the header field into the header block.
+         *
+         * <strong>The given {@link ICharSequence}s must be immutable!</strong>
+         */
+        void encodeHeader(IByteBuffer @output, ICharSequence name, ICharSequence value, bool sensitive, long headerSize)
+        {
+            // If the header value is sensitive then it must never be indexed
+            if (sensitive)
+            {
+                int nameIndex = this.getNameIndex(name);
+                this.encodeLiteral(@output, name, value, HpackUtil.IndexType.NEVER, nameIndex);
+                return;
+            }
+
+            // If the peer will only use the static table
+            if (this._maxHeaderTableSize == 0)
+            {
+                int staticTableIndex = HpackStaticTable.getIndex(name, value);
+                if (staticTableIndex == -1)
+                {
+                    int nameIndex = HpackStaticTable.getIndex(name);
+                    this.encodeLiteral(@output, name, value, HpackUtil.IndexType.NONE, nameIndex);
+                }
+                else
+                {
+                    encodeInteger(@output, 0x80, 7, staticTableIndex);
+                }
+
+                return;
+            }
+
+            // If the headerSize is greater than the max table _size then it must be encoded literally
+            if (headerSize > this._maxHeaderTableSize)
+            {
+                int nameIndex = this.getNameIndex(name);
+                this.encodeLiteral(@output, name, value, HpackUtil.IndexType.NONE, nameIndex);
+                return;
+            }
+
+            HeaderEntry headerField = this.getEntry(name, value);
+            if (headerField != null)
+            {
+                int index = this.getIndex(headerField.index) + HpackStaticTable.length;
                 // Section 6.1. Indexed Header Field Representation
-                encodeInteger(@out, 0x80, 7, staticTableIndex);
-            } else {
-                ensureCapacity(headerSize);
-                encodeLiteral(@out, name, value, IndexType.INCREMENTAL, getNameIndex(name));
-                add(name, value, headerSize);
+                encodeInteger(@output, 0x80, 7, index);
+            }
+            else
+            {
+                int staticTableIndex = HpackStaticTable.getIndex(name, value);
+                if (staticTableIndex != -1)
+                {
+                    // Section 6.1. Indexed Header Field Representation
+                    encodeInteger(@output, 0x80, 7, staticTableIndex);
+                }
+                else
+                {
+                    this.ensureCapacity(headerSize);
+                    this.encodeLiteral(@output, name, value, HpackUtil.IndexType.INCREMENTAL, this.getNameIndex(name));
+                    this.add(name, value, headerSize);
+                }
             }
         }
-    }
 
-    /**
-     * Set the maximum table size.
-     */
-    public void setMaxHeaderTableSize(IByteBuffer output, long maxHeaderTableSize)  {
-        if (maxHeaderTableSize < MIN_HEADER_TABLE_SIZE || maxHeaderTableSize > MAX_HEADER_TABLE_SIZE) {
-            throw connectionError(PROTOCOL_ERROR, "Header Table Size must be >= %d and <= %d but was %d",
-                    MIN_HEADER_TABLE_SIZE, MAX_HEADER_TABLE_SIZE, maxHeaderTableSize);
-        }
-        if (this.maxHeaderTableSize == maxHeaderTableSize) {
-            return;
-        }
-        this.maxHeaderTableSize = maxHeaderTableSize;
-        ensureCapacity(0);
-        // Casting to integer is safe as we verified the maxHeaderTableSize is a valid unsigned int.
-        encodeInteger(out, 0x20, 5, maxHeaderTableSize);
-    }
-
-    /**
-     * Return the maximum table size.
-     */
-    public long getMaxHeaderTableSize() {
-        return maxHeaderTableSize;
-    }
-
-    public void setMaxHeaderListSize(long maxHeaderListSize)  {
-        if (maxHeaderListSize < MIN_HEADER_LIST_SIZE || maxHeaderListSize > MAX_HEADER_LIST_SIZE) {
-            throw connectionError(PROTOCOL_ERROR, "Header List Size must be >= %d and <= %d but was %d",
-                    MIN_HEADER_LIST_SIZE, MAX_HEADER_LIST_SIZE, maxHeaderListSize);
-        }
-        this.maxHeaderListSize = maxHeaderListSize;
-    }
-
-    public long getMaxHeaderListSize() {
-        return maxHeaderListSize;
-    }
-
-    /**
-     * Encode integer according to <a href="https://tools.ietf.org/html/rfc7541#section-5.1">Section 5.1</a>.
-     */
-    private static void encodeInteger(IByteBuffer output, int mask, int n, int i) {
-        encodeInteger(out, mask, n, (long) i);
-    }
-
-    /**
-     * Encode integer according to <a href="https://tools.ietf.org/html/rfc7541#section-5.1">Section 5.1</a>.
-     */
-    private static void encodeInteger(IByteBuffer output, int mask, int n, long i) {
-        assert n >= 0 && n <= 8 : "N: " + n;
-        int nbits = 0xFF >>> (8 - n);
-        if (i < nbits) {
-            out.writeByte((int) (mask | i));
-        } else {
-            out.writeByte(mask | nbits);
-            long length = i - nbits;
-            for (; (length & ~0x7F) != 0; length >>>= 7) {
-                out.writeByte((int) ((length & 0x7F) | 0x80));
+        /**
+         * Set the maximum table _size.
+         */
+        public void setMaxHeaderTableSize(IByteBuffer output, long _maxHeaderTableSize)
+        {
+            if (_maxHeaderTableSize < Http2CodecUtil.MIN_HEADER_TABLE_SIZE || _maxHeaderTableSize > Http2CodecUtil.MAX_HEADER_TABLE_SIZE)
+            {
+                throw Http2Exception.connectionError(
+                    Http2Error.PROTOCOL_ERROR,
+                    "Header Table Size must be >= {0} and <= {1} but was {2}",
+                    Http2CodecUtil.MIN_HEADER_TABLE_SIZE,
+                    Http2CodecUtil.MAX_HEADER_TABLE_SIZE,
+                    _maxHeaderTableSize);
             }
-            out.writeByte((int) length);
-        }
-    }
 
-    /**
-     * Encode string literal according to Section 5.2.
-     */
-    private void encodeStringLiteral(IByteBuffer output, ICharSequence string) {
-        int huffmanLength = hpackHuffmanEncoder.getEncodedLength(string);
-        if (huffmanLength < string.length()) {
-            encodeInteger(out, 0x80, 7, huffmanLength);
-            hpackHuffmanEncoder.encode(out, string);
-        } else {
-            encodeInteger(out, 0x00, 7, string.length());
-            if (string instanceof AsciiString) {
-                // Fast-path
-                AsciiString asciiString = (AsciiString) string;
-                out.writeBytes(asciiString.array(), asciiString.arrayOffset(), asciiString.length());
-            } else {
-                // Only ASCII is allowed in http2 headers, so its fine to use this.
-                // https://tools.ietf.org/html/rfc7540#section-8.1.2
-                out.writeCharSequence(string, CharsetUtil.ISO_8859_1);
+            if (this._maxHeaderTableSize == _maxHeaderTableSize)
+            {
+                return;
+            }
+
+            this._maxHeaderTableSize = _maxHeaderTableSize;
+            this.ensureCapacity(0);
+            // Casting to integer is safe as we verified the _maxHeaderTableSize is a valid unsigned int.
+            encodeInteger(output, 0x20, 5, _maxHeaderTableSize);
+        }
+
+        /**
+         * Return the maximum table _size.
+         */
+        public long getMaxHeaderTableSize()
+        {
+            return this._maxHeaderTableSize;
+        }
+
+        public void setMaxHeaderListSize(long maxHeaderListSize)
+        {
+            if (maxHeaderListSize < Http2CodecUtil.MIN_HEADER_LIST_SIZE || maxHeaderListSize > Http2CodecUtil.MAX_HEADER_LIST_SIZE)
+            {
+                throw Http2Exception.connectionError(Http2Error.PROTOCOL_ERROR, "Header List Size must be >= {0} and <= {1} but was {2}", Http2CodecUtil.MIN_HEADER_LIST_SIZE, Http2CodecUtil.MAX_HEADER_LIST_SIZE, maxHeaderListSize);
+            }
+
+            this.maxHeaderListSize = maxHeaderListSize;
+        }
+
+        public long getMaxHeaderListSize()
+        {
+            return this.maxHeaderListSize;
+        }
+
+        /**
+         * Encode integer according to <a href="https://tools.ietf.org/html/rfc7541#section-5.1">Section 5.1</a>.
+         */
+        static void encodeInteger(IByteBuffer output, int mask, int n, int i)
+        {
+            encodeInteger(output, mask, n, (long)i);
+        }
+
+        /**
+         * Encode integer according to <a href="https://tools.ietf.org/html/rfc7541#section-5.1">Section 5.1</a>.
+         */
+        static void encodeInteger(IByteBuffer output, int mask, int n, long i)
+        {
+            Contract.Assert(n >= 0 && n <= 8, "N: " + n);
+            int nbits = 0xFF >> (8 - n);
+            if (i < nbits)
+            {
+                output.WriteByte((int)(mask | i));
+            }
+            else
+            {
+                output.WriteByte(mask | nbits);
+                long length = i - nbits;
+                for (; (length & ~0x7F) != 0; length >>= 7)
+                {
+                    output.WriteByte((int)((length & 0x7F) | 0x80));
+                }
+
+                output.WriteByte((int)length);
             }
         }
-    }
 
-    /**
-     * Encode literal header field according to Section 6.2.
-     */
-    private void encodeLiteral(IByteBuffer output, ICharSequence name, ICharSequence value, IndexType indexType,
-                               int nameIndex) {
-        bool nameIndexValid = nameIndex != -1;
-        switch (indexType) {
-            case INCREMENTAL:
-                encodeInteger(out, 0x40, 6, nameIndexValid ? nameIndex : 0);
-                break;
-            case NONE:
-                encodeInteger(out, 0x00, 4, nameIndexValid ? nameIndex : 0);
-                break;
-            case NEVER:
-                encodeInteger(out, 0x10, 4, nameIndexValid ? nameIndex : 0);
-                break;
-            default:
-                throw new Error("should not reach here");
-        }
-        if (!nameIndexValid) {
-            encodeStringLiteral(out, name);
-        }
-        encodeStringLiteral(out, value);
-    }
-
-    private int getNameIndex(ICharSequence name) {
-        int index = HpackStaticTable.getIndex(name);
-        if (index == -1) {
-            index = getIndex(name);
-            if (index >= 0) {
-                index += HpackStaticTable.length;
+        /**
+         * Encode string literal according to Section 5.2.
+         */
+        void encodeStringLiteral(IByteBuffer output, ICharSequence str)
+        {
+            int huffmanLength = this.hpackHuffmanEncoder.getEncodedLength(str);
+            if (huffmanLength < str.Count)
+            {
+                encodeInteger(output, 0x80, 7, huffmanLength);
+                this.hpackHuffmanEncoder.encode(output, str);
+            }
+            else
+            {
+                encodeInteger(output, 0x00, 7, str.Count);
+                if (str is AsciiString)
+                {
+                    // Fast-path
+                    AsciiString asciiString = (AsciiString)str;
+                    output.WriteBytes(asciiString.Array, asciiString.Offset, asciiString.Count);
+                }
+                else
+                {
+                    // Only ASCII is allowed in http2 headers, so its fine to use this.
+                    // https://tools.ietf.org/html/rfc7540#section-8.1.2
+                    output.WriteCharSequence(str, Enc);
+                }
             }
         }
-        return index;
-    }
 
-    /**
-     * Ensure that the dynamic table has enough room to hold 'headerSize' more bytes. Removes the
-     * oldest entry from the dynamic table until sufficient space is available.
-     */
-    private void ensureCapacity(long headerSize) {
-        while (maxHeaderTableSize - size < headerSize) {
-            int index = length();
-            if (index == 0) {
-                break;
+        /**
+         * Encode literal header field according to Section 6.2.
+         */
+        void encodeLiteral(IByteBuffer output, ICharSequence name, ICharSequence value, HpackUtil.IndexType indexType, int nameIndex)
+        {
+            bool nameIndexValid = nameIndex != -1;
+            switch (indexType)
+            {
+                case HpackUtil.IndexType.INCREMENTAL:
+                    encodeInteger(output, 0x40, 6, nameIndexValid ? nameIndex : 0);
+                    break;
+                case HpackUtil.IndexType.NONE:
+                    encodeInteger(output, 0x00, 4, nameIndexValid ? nameIndex : 0);
+                    break;
+                case HpackUtil.IndexType.NEVER:
+                    encodeInteger(output, 0x10, 4, nameIndexValid ? nameIndex : 0);
+                    break;
+                default:
+                    throw new Exception("should not reach here");
             }
-            remove();
+
+            if (!nameIndexValid)
+            {
+                this.encodeStringLiteral(output, name);
+            }
+
+            this.encodeStringLiteral(output, value);
         }
-    }
 
-    /**
-     * Return the number of header fields in the dynamic table. Exposed for testing.
-     */
-    int length() {
-        return size == 0 ? 0 : head.after.index - head.before.index + 1;
-    }
+        int getNameIndex(ICharSequence name)
+        {
+            int index = HpackStaticTable.getIndex(name);
+            if (index == -1)
+            {
+                index = this.getIndex(name);
+                if (index >= 0)
+                {
+                    index += HpackStaticTable.length;
+                }
+            }
 
-    /**
-     * Return the size of the dynamic table. Exposed for testing.
-     */
-    long size() {
-        return size;
-    }
-
-    /**
-     * Return the header field at the given index. Exposed for testing.
-     */
-    HpackHeaderField getHeaderField(int index) {
-        HeaderEntry entry = head;
-        while (index-- >= 0) {
-            entry = entry.before;
+            return index;
         }
-        return entry;
-    }
 
-    /**
-     * Returns the header entry with the lowest index value for the header field. Returns null if
-     * header field is not in the dynamic table.
-     */
-    private HeaderEntry getEntry(ICharSequence name, ICharSequence value) {
-        if (length() == 0 || name == null || value == null) {
+        /**
+         * Ensure that the dynamic table has enough room to hold 'headerSize' more bytes. Removes the
+         * oldest entry from the dynamic table until sufficient space is available.
+         */
+        void ensureCapacity(long headerSize)
+        {
+            while (this._maxHeaderTableSize - this._size < headerSize)
+            {
+                int index = this.length();
+                if (index == 0)
+                {
+                    break;
+                }
+
+                this.remove();
+            }
+        }
+
+        /**
+         * Return the number of header fields in the dynamic table. Exposed for testing.
+         */
+        int length()
+        {
+            return this._size == 0 ? 0 : this.head.after.index - this.head.before.index + 1;
+        }
+
+        /**
+         * Return the _size of the dynamic table. Exposed for testing.
+         */
+        long size()
+        {
+            return this._size;
+        }
+
+        /**
+         * Return the header field at the given index. Exposed for testing.
+         */
+        HpackHeaderField getHeaderField(int index)
+        {
+            HeaderEntry entry = this.head;
+            while (index-- >= 0)
+            {
+                entry = entry.before;
+            }
+
+            return entry;
+        }
+
+        /**
+         * Returns the header entry with the lowest index value for the header field. Returns null if
+         * header field is not in the dynamic table.
+         */
+        HeaderEntry getEntry(ICharSequence name, ICharSequence value)
+        {
+            if (this.length() == 0 || name == null || value == null)
+            {
+                return null;
+            }
+
+            int h = AsciiString.GetHashCode(name);
+            int i = this.index(h);
+            for (HeaderEntry e = this.headerFields[i]; e != null; e = e.next)
+            {
+                // To avoid short circuit behavior a bitwise operator is used instead of a bool operator.
+                if (e.hash == h && (HpackUtil.equalsConstantTime(name, e.name) & HpackUtil.equalsConstantTime(value, e.value)) != 0)
+                {
+                    return e;
+                }
+            }
+
             return null;
         }
-        int h = AsciiString.hashCode(name);
-        int i = index(h);
-        for (HeaderEntry e = headerFields[i]; e != null; e = e.next) {
-            // To avoid short circuit behavior a bitwise operator is used instead of a bool operator.
-            if (e.hash == h && (equalsConstantTime(name, e.name) & equalsConstantTime(value, e.value)) != 0) {
-                return e;
-            }
-        }
-        return null;
-    }
 
-    /**
-     * Returns the lowest index value for the header field name in the dynamic table. Returns -1 if
-     * the header field name is not in the dynamic table.
-     */
-    private int getIndex(ICharSequence name) {
-        if (length() == 0 || name == null) {
+        /**
+         * Returns the lowest index value for the header field name in the dynamic table. Returns -1 if
+         * the header field name is not in the dynamic table.
+         */
+        int getIndex(ICharSequence name)
+        {
+            if (this.length() == 0 || name == null)
+            {
+                return -1;
+            }
+
+            int h = AsciiString.GetHashCode(name);
+            int i = this.index(h);
+            for (HeaderEntry e = this.headerFields[i]; e != null; e = e.next)
+            {
+                if (e.hash == h && HpackUtil.equalsConstantTime(name, e.name) != 0)
+                {
+                    return this.getIndex(e.index);
+                }
+            }
+
             return -1;
         }
-        int h = AsciiString.hashCode(name);
-        int i = index(h);
-        for (HeaderEntry e = headerFields[i]; e != null; e = e.next) {
-            if (e.hash == h && equalsConstantTime(name, e.name) != 0) {
-                return getIndex(e.index);
+
+        /**
+         * Compute the index into the dynamic table given the index in the header entry.
+         */
+        int getIndex(int index)
+        {
+            return index == -1 ? -1 : index - this.head.before.index + 1;
+        }
+
+        /**
+         * Add the header field to the dynamic table. Entries are evicted from the dynamic table until
+         * the _size of the table and the new header field is less than the table's _maxHeaderTableSize. If the _size
+         * of the new entry is larger than the table's _maxHeaderTableSize, the dynamic table will be cleared.
+         */
+        void add(ICharSequence name, ICharSequence value, long headerSize)
+        {
+            // Clear the table if the header field _size is larger than the _maxHeaderTableSize.
+            if (headerSize > this._maxHeaderTableSize)
+            {
+                this.clear();
+                return;
             }
-        }
-        return -1;
-    }
 
-    /**
-     * Compute the index into the dynamic table given the index in the header entry.
-     */
-    private int getIndex(int index) {
-        return index == -1 ? -1 : index - head.before.index + 1;
-    }
+            // Evict oldest entries until we have enough _maxHeaderTableSize.
+            while (this._maxHeaderTableSize - this._size < headerSize)
+            {
+                this.remove();
+            }
 
-    /**
-     * Add the header field to the dynamic table. Entries are evicted from the dynamic table until
-     * the size of the table and the new header field is less than the table's maxHeaderTableSize. If the size
-     * of the new entry is larger than the table's maxHeaderTableSize, the dynamic table will be cleared.
-     */
-    private void add(ICharSequence name, ICharSequence value, long headerSize) {
-        // Clear the table if the header field size is larger than the maxHeaderTableSize.
-        if (headerSize > maxHeaderTableSize) {
-            clear();
-            return;
+            int h = AsciiString.GetHashCode(name);
+            int i = this.index(h);
+            HeaderEntry old = this.headerFields[i];
+            HeaderEntry e = new HeaderEntry(h, name, value, this.head.before.index - 1, old);
+            this.headerFields[i] = e;
+            e.addBefore(this.head);
+            this._size += headerSize;
         }
 
-        // Evict oldest entries until we have enough maxHeaderTableSize.
-        while (maxHeaderTableSize - size < headerSize) {
-            remove();
-        }
+        /**
+         * Remove and return the oldest header field from the dynamic table.
+         */
+        HpackHeaderField remove()
+        {
+            if (this._size == 0)
+            {
+                return null;
+            }
 
-        int h = AsciiString.hashCode(name);
-        int i = index(h);
-        HeaderEntry old = headerFields[i];
-        HeaderEntry e = new HeaderEntry(h, name, value, head.before.index - 1, old);
-        headerFields[i] = e;
-        e.addBefore(head);
-        size += headerSize;
-    }
+            HeaderEntry eldest = this.head.after;
+            int h = eldest.hash;
+            int i = this.index(h);
+            HeaderEntry prev = this.headerFields[i];
+            HeaderEntry e = prev;
+            while (e != null)
+            {
+                HeaderEntry next = e.next;
+                if (e == eldest)
+                {
+                    if (prev == eldest)
+                    {
+                        this.headerFields[i] = next;
+                    }
+                    else
+                    {
+                        prev.next = next;
+                    }
 
-    /**
-     * Remove and return the oldest header field from the dynamic table.
-     */
-    private HpackHeaderField remove() {
-        if (size == 0) {
+                    eldest.remove();
+                    this._size -= eldest.size();
+                    return eldest;
+                }
+
+                prev = e;
+                e = next;
+            }
+
             return null;
         }
-        HeaderEntry eldest = head.after;
-        int h = eldest.hash;
-        int i = index(h);
-        HeaderEntry prev = headerFields[i];
-        HeaderEntry e = prev;
-        while (e != null) {
-            HeaderEntry next = e.next;
-            if (e == eldest) {
-                if (prev == eldest) {
-                    headerFields[i] = next;
-                } else {
-                    prev.next = next;
-                }
-                eldest.remove();
-                size -= eldest.size();
-                return eldest;
+
+        /**
+         * Remove all entries from the dynamic table.
+         */
+        void clear()
+        {
+            for (var i = 0; i < this.headerFields.Length; i++)
+            {
+                this.headerFields[i] = null;
             }
-            prev = e;
-            e = next;
-        }
-        return null;
-    }
 
-    /**
-     * Remove all entries from the dynamic table.
-     */
-    private void clear() {
-        Arrays.fill(headerFields, null);
-        head.before = head.after = head;
-        size = 0;
-    }
-
-    /**
-     * Returns the index into the hash table for the hash code h.
-     */
-    private int index(int h) {
-        return h & hashMask;
-    }
-
-    /**
-     * A linked hash map HpackHeaderField entry.
-     */
-    private static final class HeaderEntry : HpackHeaderField {
-        // These fields comprise the doubly linked list used for iteration.
-        HeaderEntry before, after;
-
-        // These fields comprise the chained list for header fields with the same hash.
-        HeaderEntry next;
-        int hash;
-
-        // This is used to compute the index in the dynamic table.
-        int index;
-
-        /**
-         * Creates new entry.
-         */
-        HeaderEntry(int hash, ICharSequence name, ICharSequence value, int index, HeaderEntry next) {
-            super(name, value);
-            this.index = index;
-            this.hash = hash;
-            this.next = next;
+            //Arrays.fill(headerFields, null);
+            this.head.before = this.head.after = this.head;
+            this._size = 0;
         }
 
         /**
-         * Removes this entry from the linked list.
+         * Returns the index into the hash table for the hash code h.
          */
-        private void remove() {
-            before.after = after;
-            after.before = before;
-            before = null; // null references to prevent nepotism in generational GC.
-            after = null;
-            next = null;
+        int index(int h)
+        {
+            return h & this.hashMask;
         }
 
         /**
-         * Inserts this entry before the specified existing entry in the list.
+         * A linked hash map HpackHeaderField entry.
          */
-        private void addBefore(HeaderEntry existingEntry) {
-            after = existingEntry;
-            before = existingEntry.before;
-            before.after = this;
-            after.before = this;
+        sealed class HeaderEntry : HpackHeaderField
+        {
+            // These fields comprise the doubly linked list used for iteration.
+            internal HeaderEntry before;
+            internal HeaderEntry after;
+
+            // These fields comprise the chained list for header fields with the same hash.
+            internal HeaderEntry next;
+            internal readonly int hash;
+
+            // This is used to compute the index in the dynamic table.
+            internal readonly int index;
+
+            /**
+             * Creates new entry.
+             */
+            internal HeaderEntry(int hash, ICharSequence name, ICharSequence value, int index, HeaderEntry next)
+                : base(name, value)
+            {
+                this.index = index;
+                this.hash = hash;
+                this.next = next;
+            }
+
+            /**
+             * Removes this entry from the linked list.
+             */
+            internal void remove()
+            {
+                this.before.after = this.after;
+                this.after.before = this.before;
+                this.before = null; // null references to prevent nepotism in generational GC.
+                this.after = null;
+                this.next = null;
+            }
+
+            /**
+             * Inserts this entry before the specified existing entry in the list.
+             */
+            internal void addBefore(HeaderEntry existingEntry)
+            {
+                this.after = existingEntry;
+                this.before = existingEntry.before;
+                this.before.after = this;
+                this.after.before = this;
+            }
         }
     }
 }

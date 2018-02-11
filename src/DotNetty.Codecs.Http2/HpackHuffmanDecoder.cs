@@ -18,7 +18,7 @@ namespace DotNetty.Codecs.Http2
 
         readonly DecoderProcessor processor;
 
-        HpackHuffmanDecoder(int initialCapacity)
+        internal HpackHuffmanDecoder(int initialCapacity)
         {
             this.processor = new DecoderProcessor(initialCapacity);
         }

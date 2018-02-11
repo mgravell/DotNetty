@@ -17,7 +17,7 @@ namespace DotNetty.Codecs.Http2
         /**
      * Creates a new dynamic table with the specified initial _capacity.
      */
-        HpackDynamicTable(long initialCapacity)
+        internal HpackDynamicTable(long initialCapacity)
         {
             this.setCapacity(initialCapacity);
         }

@@ -134,6 +134,19 @@ namespace DotNetty.Codecs.Http2
         public static readonly int DEFAULT_MIN_ALLOCATION_CHUNK = 1024;
 
         public static readonly int DEFAULT_INITIAL_HUFFMAN_DECODE_CAPACITY = 32;
+        
+        /**
+         * Calculate the threshold in bytes which should trigger a {@code GO_AWAY} if a set of headers exceeds this amount.
+         * @param maxHeaderListSize
+         *      <a href="https://tools.ietf.org/html/rfc7540#section-6.5.2">SETTINGS_MAX_HEADER_LIST_SIZE</a> for the local
+         *      endpoint.
+         * @return the threshold in bytes which should trigger a {@code GO_AWAY} if a set of headers exceeds this amount.
+         */
+        public static long calculateMaxHeaderListSizeGoAway(long maxHeaderListSize) {
+            // This is equivalent to `maxHeaderListSize * 1.25` but we avoid floating point multiplication.
+            return maxHeaderListSize + (maxHeaderListSize >> 2);
+        }
+        
 
         /**
      * Return a unreleasable view on the given {@link ByteBuf} which will just ignore release and retain calls.

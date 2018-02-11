@@ -13,7 +13,7 @@ namespace DotNetty.Codecs.Http2
         // overhead associated with the structure.
         internal  const int HEADER_ENTRY_OVERHEAD = 32;
 
-        static long sizeOf(ICharSequence name, ICharSequence value)
+        internal static long sizeOf(ICharSequence name, ICharSequence value)
         {
             return name.Count + value.Count + HEADER_ENTRY_OVERHEAD;
         }

@@ -15,18 +15,18 @@ namespace DotNetty.Codecs.Http2
         readonly EncodedLengthProcessor encodedLengthProcessor;
         readonly EncodeProcessor encodeProcessor;
 
-        HpackHuffmanEncoder()
+        internal HpackHuffmanEncoder()
             : this(HpackUtil.HUFFMAN_CODES, HpackUtil.HUFFMAN_CODE_LENGTHS)
         {
         }
 
         /**
-     * Creates a new Huffman encoder with the specified Huffman coding.
-     *
-     * @param codes the Huffman codes indexed by symbol
-     * @param lengths the length of each Huffman code
-     */
-        HpackHuffmanEncoder(int[] codes, byte[] lengths)
+         * Creates a new Huffman encoder with the specified Huffman coding.
+         *
+         * @param codes the Huffman codes indexed by symbol
+         * @param lengths the length of each Huffman code
+         */
+        internal HpackHuffmanEncoder(int[] codes, byte[] lengths)
         {
             this.encodedLengthProcessor = new EncodedLengthProcessor(this);
             this.encodeProcessor = new EncodeProcessor(this);
@@ -97,7 +97,7 @@ namespace DotNetty.Codecs.Http2
      * @param data the string literal to be Huffman encoded
      * @return the number of bytes required to Huffman encode {@code data}
      */
-        int getEncodedLength(ICharSequence data)
+        internal int getEncodedLength(ICharSequence data)
         {
             if (data is AsciiString str)
             {

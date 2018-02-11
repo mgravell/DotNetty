@@ -89,12 +89,12 @@ namespace DotNetty.Codecs.Http2
         /**
      * The number of header fields in the static table.
      */
-        static readonly int length = STATIC_TABLE.Length;
+        internal static readonly int length = STATIC_TABLE.Length;
 
         /**
      * Return the header field at the given index value.
      */
-        static HpackHeaderField getEntry(int index)
+        internal static HpackHeaderField getEntry(int index)
         {
             return STATIC_TABLE[index - 1];
         }
@@ -103,7 +103,7 @@ namespace DotNetty.Codecs.Http2
      * Returns the lowest index value for the given header field name in the static table. Returns
      * -1 if the header field name is not in the static table.
      */
-        static int getIndex(ICharSequence name)
+        internal static int getIndex(ICharSequence name)
         {
             int index = STATIC_INDEX_BY_NAME.Get(name);
             if (index == null)
@@ -118,7 +118,7 @@ namespace DotNetty.Codecs.Http2
      * Returns the index value for the given header field in the static table. Returns -1 if the
      * header field is not in the static table.
      */
-        static int getIndex(ICharSequence name, ICharSequence value)
+        internal static int getIndex(ICharSequence name, ICharSequence value)
         {
             int index = getIndex(name);
             if (index == -1)
