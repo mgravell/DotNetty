@@ -37,7 +37,7 @@ namespace DotNetty.Codecs
 
         public static string ToString<TKey, TValue>(IEnumerable<HeaderEntry<TKey, TValue>> headers, int size)
             where TKey : class
-            //where TValue : class
+            where TValue : class
         {
             string simpleName = StringUtil.SimpleClassName(headers);
             if (size == 0)

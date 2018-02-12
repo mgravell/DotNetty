@@ -11,7 +11,6 @@ namespace DotNetty.Codecs
     using System.Collections.Generic;
     using System.Collections.Immutable;
     using System.Diagnostics.Contracts;
-    using System.Reflection;
     using System.Runtime.CompilerServices;
     using DotNetty.Common.Utilities;
 
@@ -19,13 +18,13 @@ namespace DotNetty.Codecs
 
     public class DefaultHeaders<TKey, TValue> : IHeaders<TKey, TValue>
         where TKey : class
+        where TValue : class
     {
         const int HashCodeSeed = unchecked((int)0xc2b2ae35);
 
         static readonly DefaultHashingStrategy<TValue> DefaultValueHashingStrategy = new DefaultHashingStrategy<TValue>();
         static readonly DefaultHashingStrategy<TKey> DefaultKeyHashingStragety = new DefaultHashingStrategy<TKey>();
         static readonly NullNameValidator<TKey> DefaultKeyNameValidator = new NullNameValidator<TKey>();
-        static readonly IEqualityComparer<TValue> ValueComparer = EqualityComparer<TValue>.Default;
 
         readonly HeaderEntry<TKey, TValue>[] entries;
         protected readonly HeaderEntry<TKey, TValue> head;
@@ -76,7 +75,7 @@ namespace DotNetty.Codecs
             int h = this.hashingStrategy.HashCode(name);
             int i = this.Index(h);
             HeaderEntry<TKey, TValue> e = this.entries[i];
-            TValue value = default(TValue);
+            TValue value = null;
             // loop until the first header was found
             while (e != null)
             {
@@ -93,7 +92,7 @@ namespace DotNetty.Codecs
         public TValue Get(TKey name, TValue defaultValue)
         {
             TValue value = this.Get(name);
-            return !Default(value) ? value :  defaultValue;
+            return value ?? defaultValue;
         }
 
         public TValue GetAndRemove(TKey name)
@@ -107,7 +106,7 @@ namespace DotNetty.Codecs
         public TValue GetAndRemove(TKey name, TValue defaultValue)
         {
             TValue value = this.GetAndRemove(name);
-            return !Default(value) ? value :  defaultValue;
+            return value ?? defaultValue;
         }
 
         public virtual IList<TValue> GetAll(TKey name)
@@ -209,7 +208,7 @@ namespace DotNetty.Codecs
 
         public virtual IHeaders<TKey, TValue> Add(TKey name, TValue value)
         {
-            Contract.Requires(!Default(value));
+            Contract.Requires(value != null);
 
             this.nameValidator.ValidateName(name);
             int h = this.hashingStrategy.HashCode(name);
@@ -324,7 +323,7 @@ namespace DotNetty.Codecs
 
         public IHeaders<TKey, TValue> Set(TKey name, TValue value)
         {
-            Contract.Requires(!Default(value));
+            Contract.Requires(value != null);
 
             this.nameValidator.ValidateName(name);
             int h = this.hashingStrategy.HashCode(name);
@@ -667,10 +666,10 @@ namespace DotNetty.Codecs
             HeaderEntry<TKey, TValue> e = this.entries[i];
             if (e == null)
             {
-                return default(TValue);
+                return null;
             }
 
-            TValue value = default(TValue);
+            TValue value = null;
             HeaderEntry<TKey, TValue> next = e.Next;
             while (next != null)
             {
@@ -704,9 +703,6 @@ namespace DotNetty.Codecs
             return value;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static bool Default(TValue value) => ValueComparer.Equals(value, default(TValue));
-
         struct ValueEnumerator : IEnumerator<TValue>, IEnumerable<TValue>
         {
             readonly IHashingStrategy<TKey> hashingStrategy;
@@ -724,7 +720,7 @@ namespace DotNetty.Codecs
                 this.hash = this.hashingStrategy.HashCode(name);
                 this.name = name;
                 this.node = this.head = headers.entries[headers.Index(this.hash)];
-                this.current = default(TValue);
+                this.current = null;
             }
 
             bool IEnumerator.MoveNext()
@@ -760,13 +756,13 @@ namespace DotNetty.Codecs
             void IEnumerator.Reset()
             {
                 this.node = this.head;
-                this.current = default(TValue);
+                this.current = null;
             }
 
             void IDisposable.Dispose()
             {
                 this.node = null;
-                this.current = default(TValue);
+                this.current = null;
             }
 
             public IEnumerator<TValue> GetEnumerator() => this;
@@ -841,6 +837,7 @@ namespace DotNetty.Codecs
 
     public class HeaderEntry<TKey, TValue>
         where TKey : class
+        where TValue : class
     {
         internal readonly int Hash;
         // ReSharper disable InconsistentNaming
@@ -893,7 +890,7 @@ namespace DotNetty.Codecs
 
         public TValue SetValue(TValue newValue)
         {
-            Contract.Requires(!EqualityComparer<TValue>.Default.Equals(newValue, default(TValue)));
+            Contract.Requires(newValue != null);
 
             TValue oldValue = this.value;
             this.value = newValue;

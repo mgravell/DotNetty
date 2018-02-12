@@ -7,6 +7,7 @@ namespace DotNetty.Codecs
 
     public interface IHeaders<TKey, TValue> : IEnumerable<HeaderEntry<TKey, TValue>> 
         where TKey : class
+        where TValue : class
     {
         TValue Get(TKey name);
 
