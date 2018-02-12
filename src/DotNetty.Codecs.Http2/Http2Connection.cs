@@ -21,7 +21,7 @@ namespace DotNetty.Codecs.Http2
            * @param promise Will be completed when all streams have been removed, and listeners have been notified.
            * @return A future that will be completed when all streams have been removed, and listeners have been notified.
            */
-        Task close(TaskCompletionSource promise);
+        Task close(IPromise promise);
 
         /**
            * Creates a new key that is unique within this {@link Http2Connection}.
@@ -69,7 +69,7 @@ namespace DotNetty.Codecs.Http2
            */
         Http2Stream forEachActiveStream(Http2StreamVisitor visitor);
        
-       Http2Stream forEachActiveStream(Func<Http2Stream, bool> visitor);
+        Http2Stream forEachActiveStream(Func<Http2Stream, bool> visitor);
 
         /**
            * Indicates whether or not the local endpoint for this connection is the server.

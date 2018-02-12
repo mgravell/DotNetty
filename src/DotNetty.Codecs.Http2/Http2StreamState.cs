@@ -22,13 +22,13 @@ namespace DotNetty.Codecs.Http2
          * Indicates whether the local side of this stream is open (i.e. the state is either
          * {@link State#OPEN} or {@link State#HALF_CLOSED_REMOTE}).
          */
-        public bool LocalSideOpen => this.Item1;
+        public bool localSideOpen() => this.Item1;
 
         /**
          * Indicates whether the remote side of this stream is open (i.e. the state is either
          * {@link State#OPEN} or {@link State#HALF_CLOSED_LOCAL}).
          */
-        public bool RemoteSideOpen => this.Item2;
+        public bool remoteSideOpen() => this.Item2;
 
         public Http2StreamState(bool localSideOpen, bool remoteSideOpen)
             : base(localSideOpen, remoteSideOpen)

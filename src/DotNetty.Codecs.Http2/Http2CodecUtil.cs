@@ -129,7 +129,7 @@ namespace DotNetty.Codecs.Http2
          */
         public const int SMALLEST_MAX_CONCURRENT_STREAMS = 100;
 
-        static readonly int DEFAULT_MAX_RESERVED_STREAMS = SMALLEST_MAX_CONCURRENT_STREAMS;
+        public static readonly int DEFAULT_MAX_RESERVED_STREAMS = SMALLEST_MAX_CONCURRENT_STREAMS;
 
         public static readonly int DEFAULT_MIN_ALLOCATION_CHUNK = 1024;
 
