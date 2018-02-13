@@ -8,10 +8,9 @@ namespace DotNetty.Codecs.Http2
 
     /**
      * Provides the ability to handle multiple stream exceptions with one throw statement.
-     */d
+     */
     public sealed class CompositeStreamException : Http2Exception, IEnumerable<StreamException>
     {
-        static readonly long serialVersionUID = 7091134858213711015L;
         readonly List<StreamException> exceptions;
 
         public CompositeStreamException(Http2Error error, int initialCapacity)

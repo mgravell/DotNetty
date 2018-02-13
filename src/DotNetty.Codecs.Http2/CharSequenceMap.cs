@@ -3,13 +3,15 @@
 
 namespace DotNetty.Codecs.Http2
 {
+    using System;
     using DotNetty.Common.Utilities;
 
     public sealed class CharSequenceMap<T> : DefaultHeaders<ICharSequence, T>
-{
+    {
         public CharSequenceMap()
             : this(true)
         {
+            
         }
 
         public CharSequenceMap(bool caseSensitive)

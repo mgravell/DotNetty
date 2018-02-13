@@ -65,17 +65,17 @@ namespace DotNetty.Codecs.Http2
          * Associates the application-defined data with this stream.
          * @return The value that was previously associated with {@code key}, or {@code null} if there was none.
          */
-        T setProperty<T>(Http2ConnectionPropertyKey key, T value);
+        T setProperty<T>(Http2ConnectionPropertyKey key, T value) where T : class;
 
         /**
          * Returns application-defined data if any was associated with this stream.
          */
-        T getProperty<T>(Http2ConnectionPropertyKey key);
+        T getProperty<T>(Http2ConnectionPropertyKey key) where T : class;
 
         /**
          * Returns and removes application-defined data if any was associated with this stream.
          */
-        T removeProperty<T>(Http2ConnectionPropertyKey key);
+        T removeProperty<T>(Http2ConnectionPropertyKey key) where T : class;
 
         /**
          * Indicates that headers have been sent to the remote endpoint on this stream. The first call to this method would

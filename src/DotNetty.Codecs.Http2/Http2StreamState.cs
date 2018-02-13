@@ -8,7 +8,7 @@ namespace DotNetty.Codecs.Http2
     /**
      * The allowed states of an HTTP2 stream.
      */
-    public class Http2StreamState : Tuple<bool, bool>
+    public class Http2StreamState
     {
         public static readonly Http2StreamState IDLE = new Http2StreamState(false, false);
         public static readonly Http2StreamState RESERVED_LOCAL = new Http2StreamState(false, false);
@@ -30,9 +30,39 @@ namespace DotNetty.Codecs.Http2
          */
         public bool remoteSideOpen() => this.Item2;
 
-        public Http2StreamState(bool localSideOpen, bool remoteSideOpen)
-            : base(localSideOpen, remoteSideOpen)
+        readonly bool Item1;
+        readonly bool Item2;
+
+        Http2StreamState(bool localSideOpen, bool remoteSideOpen)
         {
+            this.Item1 = localSideOpen;
+            this.Item2 = remoteSideOpen;
         }
+/*
+        public static bool operator ==(Http2StreamState left, Http2StreamState right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            if (ReferenceEquals(left, null))
+            {
+                return false;
+            }
+            
+            if (ReferenceEquals(right, null))
+            {
+                return false;
+            }
+
+            return left.Equals(right);
+        }
+        
+
+        public static bool operator !=(Http2StreamState left, Http2StreamState right) => !(left == right);
+
+        public bool Equals(Http2StreamState other) => this.Equals((object)other);*/
+        
     }
 }

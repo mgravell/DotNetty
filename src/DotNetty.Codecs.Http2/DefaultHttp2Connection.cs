@@ -7,6 +7,8 @@ namespace DotNetty.Codecs.Http2
     using System;
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
+    using System.Linq;
+    using System.Net.Security;
     using System.Threading.Tasks;
     using DotNetty.Buffers;
     using DotNetty.Common.Concurrency;
@@ -19,7 +21,7 @@ namespace DotNetty.Codecs.Http2
         static readonly IInternalLogger logger = InternalLoggerFactory.GetInstance<DefaultHttp2Connection>();
 
         // Fields accessed by inner classes
-        readonly Dictionary<int, Http2Stream> streamMap = new Dictionary<int, Http2Stream>();
+        readonly Dictionary<int, DefaultStream> streamMap = new Dictionary<int, DefaultStream>();
         readonly PropertyKeyRegistry propertyKeyRegistry = new PropertyKeyRegistry();
         readonly ConnectionStream _connectionStream;
         readonly DefaultEndpoint<Http2LocalFlowController> localEndpoint;
@@ -106,7 +108,10 @@ namespace DotNetty.Codecs.Http2
                 return promise.Task;
             }
 
-            IEnumerator<KeyValuePair<int, Http2Stream>> itr = streamMap.GetEnumerator();
+            //IEnumerator<KeyValuePair<int, Http2Stream>> itr = streamMap.GetEnumerator();
+            //copying streams to array to be able to modify streamMap
+            DefaultStream[] streams = this.streamMap.Values.ToArray();
+
             // We must take care while iterating the streamMap as to not modify while iterating in case there are other code
             // paths iterating over the active streams.
             if (activeStreams.allowModifications())
@@ -114,15 +119,15 @@ namespace DotNetty.Codecs.Http2
                 activeStreams.incrementPendingIterations();
                 try
                 {
-                    while (itr.MoveNext())
+                    for (int i = 0; i < streams.Length; i++)
                     {
-                        DefaultStream stream = (DefaultStream)itr.Current.Value;
+                        DefaultStream stream = streams[i];
                         if (stream.id() != Http2CodecUtil.CONNECTION_STREAM_ID)
                         {
                             // If modifications of the activeStream map is allowed, then a stream close operation will also
                             // modify the streamMap. Pass the iterator in so that remove will be called to prevent
                             // concurrent modification exceptions.
-                            stream.close(itr);
+                            stream.close(true);
                         }
                     }
                 }
@@ -133,9 +138,9 @@ namespace DotNetty.Codecs.Http2
             }
             else
             {
-                while (itr.MoveNext())
+                for (int i = 0; i < streams.Length; i++)
                 {
-                    Http2Stream stream = itr.Current.Value;
+                    DefaultStream stream = streams[i];
                     if (stream.id() != Http2CodecUtil.CONNECTION_STREAM_ID)
                     {
                         // We are not allowed to make modifications, so the close calls will be executed after this
@@ -170,7 +175,7 @@ namespace DotNetty.Codecs.Http2
 
         public Http2Stream stream(int streamId)
         {
-            return streamMap.TryGetValue(streamId, out Http2Stream result) ? result : null;
+            return streamMap.TryGetValue(streamId, out DefaultStream result) ? result : null;
         }
 
         public bool streamMayHaveExisted(int streamId)
@@ -282,18 +287,9 @@ namespace DotNetty.Codecs.Http2
          * @param itr an iterator that may be pointing to the stream during iteration and {@link IEnumerator#remove()} will be
          * used if non-{@code null}.
          */
-        void removeStream(DefaultStream stream, IEnumerator<KeyValuePair<int, Http2Stream>> itr)
+        void removeStream(DefaultStream stream)
         {
-            bool removed;
-            if (itr == null)
-            {
-                removed = streamMap.Remove(stream.id()) != null;
-            }
-            else
-            {
-                itr.Remove();
-                removed = true;
-            }
+            bool removed = streamMap.Remove(stream.id()) != null;
 
             if (removed)
             {
@@ -318,17 +314,20 @@ namespace DotNetty.Codecs.Http2
 
         static Http2StreamState activeState(int streamId, Http2StreamState initialState, bool isLocal, bool halfClosed)
         {
-            switch (initialState)
+            if (initialState == Http2StreamState.IDLE)
             {
-                case Http2StreamState.IDLE:
-                    return halfClosed ? isLocal ? Http2StreamState.HALF_CLOSED_LOCAL : Http2StreamState.HALF_CLOSED_REMOTE : Http2StreamState.OPEN;
-                case Http2StreamState.RESERVED_LOCAL:
-                    return Http2StreamState.HALF_CLOSED_REMOTE;
-                case Http2StreamState.RESERVED_REMOTE:
-                    return Http2StreamState.HALF_CLOSED_LOCAL;
-                default:
-                    throw Http2Exception.streamError(streamId, Http2Error.PROTOCOL_ERROR, "Attempting to open a stream in an invalid state: " + initialState);
+                return halfClosed ? isLocal ? Http2StreamState.HALF_CLOSED_LOCAL : Http2StreamState.HALF_CLOSED_REMOTE : Http2StreamState.OPEN;
             }
+            else if (initialState == Http2StreamState.RESERVED_LOCAL)
+            {
+                return Http2StreamState.HALF_CLOSED_REMOTE;
+            }
+            else if (initialState == Http2StreamState.RESERVED_REMOTE)
+            {
+                return Http2StreamState.HALF_CLOSED_LOCAL;
+            }
+
+            throw Http2Exception.streamError(streamId, Http2Error.PROTOCOL_ERROR, "Attempting to open a stream in an invalid state: " + initialState);
         }
 
         void notifyHalfClosed(Http2Stream stream)
@@ -393,7 +392,7 @@ namespace DotNetty.Codecs.Http2
             static readonly byte META_STATE_RECV_TRAILERS = 1 << 5;
             readonly DefaultHttp2Connection conn;
             readonly int _id;
-            readonly PropertyMap properties = new PropertyMap();
+            readonly PropertyMap properties;
             private Http2StreamState _state;
             private byte metaState;
 
@@ -402,6 +401,7 @@ namespace DotNetty.Codecs.Http2
                 this.conn = conn;
                 this._id = id;
                 this._state = state;
+                this.properties = new PropertyMap(conn.propertyKeyRegistry);
             }
 
             public int id()
@@ -414,7 +414,7 @@ namespace DotNetty.Codecs.Http2
                 return _state;
             }
 
-            public bool isResetSent()
+            public virtual bool isResetSent()
             {
                 return (metaState & META_STATE_SENT_RST) != 0;
             }
@@ -477,16 +477,19 @@ namespace DotNetty.Codecs.Http2
             }
 
             public V setProperty<V>(Http2ConnectionPropertyKey key, V value)
+                where V : class
             {
                 return properties.add(this.conn.verifyKey(key), value);
             }
 
             public V getProperty<V>(Http2ConnectionPropertyKey key)
+                where V : class
             {
                 return properties.get<V>(this.conn.verifyKey(key));
             }
 
             public V removeProperty<V>(Http2ConnectionPropertyKey key)
+                where V : class
             {
                 return properties.remove<V>(this.conn.verifyKey(key));
             }
@@ -508,7 +511,12 @@ namespace DotNetty.Codecs.Http2
                 this.conn.activeStreams.activate(this);
             }
 
-            Http2Stream close(IEnumerator<KeyValuePair<int, Http2Stream>> itr)
+            public virtual Http2Stream close()
+            {
+                return close(false);
+            }
+
+            public virtual Http2Stream close(bool force)
             {
                 if (_state == Http2StreamState.CLOSED)
                 {
@@ -518,28 +526,23 @@ namespace DotNetty.Codecs.Http2
                 _state = Http2StreamState.CLOSED;
 
                 --createdBy().numStreams;
-                this.conn.activeStreams.deactivate(this, itr);
+                this.conn.activeStreams.deactivate(this, force);
                 return this;
-            }
-
-            public virtual Http2Stream close()
-            {
-                return close(null);
             }
 
             public virtual Http2Stream closeLocalSide()
             {
-                switch (_state)
+                if (this._state == Http2StreamState.OPEN)
                 {
-                    case Http2StreamState.OPEN:
-                        _state = Http2StreamState.HALF_CLOSED_LOCAL;
-                        this.conn.notifyHalfClosed(this);
-                        break;
-                    case Http2StreamState.HALF_CLOSED_LOCAL:
-                        break;
-                    default:
-                        close();
-                        break;
+                    _state = Http2StreamState.HALF_CLOSED_LOCAL;
+                    this.conn.notifyHalfClosed(this);
+                }
+                else if (this._state == Http2StreamState.HALF_CLOSED_LOCAL)
+                {
+                }
+                else
+                {
+                    close();
                 }
 
                 return this;
@@ -547,25 +550,27 @@ namespace DotNetty.Codecs.Http2
 
             public virtual Http2Stream closeRemoteSide()
             {
-                switch (_state)
+                if (_state == Http2StreamState.OPEN)
                 {
-                    case Http2StreamState.OPEN:
-                        _state = Http2StreamState.HALF_CLOSED_REMOTE;
-                        this.conn.notifyHalfClosed(this);
-                        break;
-                    case Http2StreamState.HALF_CLOSED_REMOTE:
-                        break;
-                    default:
-                        close();
-                        break;
+                    _state = Http2StreamState.HALF_CLOSED_REMOTE;
+                    this.conn.notifyHalfClosed(this);
+                }
+                else if (this._state == Http2StreamState.HALF_CLOSED_REMOTE)
+                {
+                }
+                else
+                {
+                    this.close();
                 }
 
                 return this;
             }
 
-            public virtual DefaultEndpoint<Http2FlowController> createdBy()
+            internal virtual DefaultEndpoint createdBy()
             {
-                return this.conn.localEndpoint.isValidStreamId(_id) ? this.conn.localEndpoint : this.conn.remoteEndpoint;
+                return this.conn.localEndpoint.isValidStreamId(_id)
+                    ? (DefaultEndpoint)this.conn.localEndpoint
+                    : this.conn.remoteEndpoint;
             }
 
             bool isLocal()
@@ -578,9 +583,16 @@ namespace DotNetty.Codecs.Http2
              */
             class PropertyMap
             {
-                Object[] values = EmptyArrays.EmptyObjects;
+                readonly PropertyKeyRegistry registry;
+                object[] values = EmptyArrays.EmptyObjects;
+
+                public PropertyMap(PropertyKeyRegistry registry)
+                {
+                    this.registry = registry;
+                }
 
                 internal V add<V>(DefaultPropertyKey key, V value)
+                    where V : class
                 {
                     resizeIfNecessary(key.index);
                     V prevValue = (V)values[key.index];
@@ -589,6 +601,7 @@ namespace DotNetty.Codecs.Http2
                 }
 
                 internal V get<V>(DefaultPropertyKey key)
+                    where V : class
                 {
                     if (key.index >= values.Length)
                     {
@@ -599,6 +612,7 @@ namespace DotNetty.Codecs.Http2
                 }
 
                 internal V remove<V>(DefaultPropertyKey key)
+                    where V : class
                 {
                     V prevValue = null;
                     if (key.index < values.Length)
@@ -614,7 +628,9 @@ namespace DotNetty.Codecs.Http2
                 {
                     if (index >= values.Length)
                     {
-                        values = Arrays.copyOf(values, propertyKeyRegistry.size());
+                        object[] tmp = new object[this.registry.size()];
+                        Array.Copy(this.values, tmp, Math.Min(this.values.Length, tmp.Length));
+                        values = tmp;
                     }
                 }
             }
@@ -630,12 +646,12 @@ namespace DotNetty.Codecs.Http2
             {
             }
 
-            public bool isResetSent()
+            public override bool isResetSent()
             {
                 return false;
             }
 
-            public override DefaultEndpoint<Http2FlowController> createdBy()
+            internal override DefaultEndpoint createdBy()
             {
                 return null;
             }
@@ -686,11 +702,32 @@ namespace DotNetty.Codecs.Http2
             }
         }
 
+        internal class DefaultEndpoint<F> : DefaultEndpoint, Http2ConnectionEndpoint<F>
+            where F : class, Http2FlowController
+        {
+            F _flowController;
+
+            internal DefaultEndpoint(DefaultHttp2Connection conn, bool server, int maxReservedStreams)
+                : base(conn, server, maxReservedStreams)
+            {
+            }
+
+            public F flowController()
+            {
+                return _flowController;
+            }
+
+            public void flowController(F flowController)
+            {
+                Contract.Requires(flowController != null);
+                this._flowController = flowController;
+            }
+        }
+
         /**
          * Simple endpoint implementation.
          */
-        sealed class DefaultEndpoint<F> : Http2ConnectionEndpoint<F>
-            where F : Http2FlowController
+        internal class DefaultEndpoint : Http2ConnectionEndpoint
         {
             readonly DefaultHttp2Connection conn;
 
@@ -712,7 +749,7 @@ namespace DotNetty.Codecs.Http2
             private int nextReservationStreamId;
             internal int _lastStreamKnownByPeer = -1;
             private bool pushToAllowed = true;
-            private F _flowController;
+
             private int maxStreams;
             private int _maxActiveStreams;
 
@@ -746,7 +783,8 @@ namespace DotNetty.Codecs.Http2
                 // Push is disallowed by default for servers and allowed for clients.
                 pushToAllowed = !server;
                 _maxActiveStreams = int.MaxValue;
-                this.maxReservedStreams = checkPositiveOrZero(maxReservedStreams, "maxReservedStreams");
+                Contract.Requires(maxReservedStreams >= 0);
+                this.maxReservedStreams = maxReservedStreams;
                 updateMaxStreams();
             }
 
@@ -781,7 +819,7 @@ namespace DotNetty.Codecs.Http2
                 return _numActiveStreams < _maxActiveStreams;
             }
 
-            public DefaultStream createStream(int streamId, bool halfClosed)
+            public Http2Stream createStream(int streamId, bool halfClosed)
             {
                 Http2StreamState state = activeState(streamId, Http2StreamState.IDLE, isLocal(), halfClosed);
 
@@ -800,7 +838,7 @@ namespace DotNetty.Codecs.Http2
 
             public bool created(Http2Stream stream)
             {
-                return stream is DefaultStream defaultStream && defaultStream.createdBy() == this;
+                return stream is DefaultStream defaultStream && ReferenceEquals(defaultStream.createdBy(), this);
             }
 
             public bool isServer()
@@ -808,7 +846,7 @@ namespace DotNetty.Codecs.Http2
                 return server;
             }
 
-            public DefaultStream reservePushStream(int streamId, Http2Stream parent)
+            public Http2Stream reservePushStream(int streamId, Http2Stream parent)
             {
                 if (parent == null)
                 {
@@ -903,20 +941,9 @@ namespace DotNetty.Codecs.Http2
                 this._lastStreamKnownByPeer = lastKnownStream;
             }
 
-            public F flowController()
+            public Http2ConnectionEndpoint opposite()
             {
-                return _flowController;
-            }
-
-            public void flowController(F flowController)
-            {
-                Contract.Requires(flowController != null);
-                this._flowController = flowController;
-            }
-
-            public Http2ConnectionEndpoint<Http2FlowController> opposite()
-            {
-                return isLocal() ? remoteEndpoint : localEndpoint;
+                return this.isLocal() ? (Http2ConnectionEndpoint)this.conn.remoteEndpoint : this.conn.localEndpoint;
             }
 
             private void updateMaxStreams()
@@ -996,8 +1023,8 @@ namespace DotNetty.Codecs.Http2
         {
             readonly DefaultHttp2Connection conn;
             readonly List<Http2ConnectionListener> listeners;
-            readonly IQueue<Action> pendingEvents = new ArrayDeque<Action>(4);
-            readonly ISet<Http2Stream> streams = new LinkedHashSet<Http2Stream>();
+            readonly IQueue<Action> pendingEvents = PlatformDependent.NewMpscQueue<Action>();
+            readonly ISet<Http2Stream> streams = new HashSet<Http2Stream>();
             private int pendingIterations;
 
             public ActiveStreams(DefaultHttp2Connection conn, List<Http2ConnectionListener> listeners)
@@ -1023,15 +1050,15 @@ namespace DotNetty.Codecs.Http2
                 }
             }
 
-            internal void deactivate(DefaultStream stream, IEnumerator<KeyValuePair<int, Http2Stream>> itr)
+            internal void deactivate(DefaultStream stream, bool force)
             {
-                if (allowModifications() || itr != null)
+                if (allowModifications() || force)
                 {
-                    removeFromActiveStreams(stream, itr);
+                    this.removeFromActiveStreams(stream);
                 }
                 else
                 {
-                    pendingEvents.TryEnqueue(() => removeFromActiveStreams(stream, itr));
+                    pendingEvents.TryEnqueue(() => this.removeFromActiveStreams(stream));
                 }
             }
 
@@ -1077,7 +1104,7 @@ namespace DotNetty.Codecs.Http2
                 }
             }
 
-            void removeFromActiveStreams(DefaultStream stream, IEnumerator<KeyValuePair<int, Http2Stream>> itr)
+            void removeFromActiveStreams(DefaultStream stream)
             {
                 if (streams.Remove(stream))
                 {
@@ -1086,7 +1113,7 @@ namespace DotNetty.Codecs.Http2
                     this.conn.notifyClosed(stream);
                 }
 
-                this.conn.removeStream(stream, itr);
+                this.conn.removeStream(stream);
             }
 
             internal bool allowModifications()
@@ -1154,7 +1181,7 @@ namespace DotNetty.Codecs.Http2
              * (local/remote flow controller and {@link StreamByteDistributor}) and we leave room for 1 extra.
              * We could be more aggressive but the ArrayList resize will double the size if we are too small.
              */
-            IList<DefaultPropertyKey> keys = new List<DefaultPropertyKey>(4);
+            readonly IList<DefaultPropertyKey> keys = new List<DefaultPropertyKey>(4);
 
             /**
              * Registers a new property key.
@@ -1166,7 +1193,7 @@ namespace DotNetty.Codecs.Http2
                 return key;
             }
 
-            int size()
+            internal int size()
             {
                 return keys.Count;
             }

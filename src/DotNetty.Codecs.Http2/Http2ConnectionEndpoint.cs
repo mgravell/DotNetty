@@ -3,11 +3,24 @@
 
 namespace DotNetty.Codecs.Http2
 {
-    /**
-         * A view of the connection from one endpoint (local or remote).
-         */
- public interface Http2ConnectionEndpoint<F>
+    public interface Http2ConnectionEndpoint<F> : Http2ConnectionEndpoint
         where F : Http2FlowController
+    {
+        /**
+        * Gets the flow controller for this endpoint.
+        */
+        F flowController();
+
+        /**
+         * Sets the flow controller for this endpoint.
+         */
+        void flowController(F flowController);
+    }
+
+    /**
+     * A view of the connection from one endpoint (local or remote).
+     */
+    public interface Http2ConnectionEndpoint
     {
         /**
          * Increment and get the next generated stream id this endpoint. If negative, the stream IDs are
@@ -129,18 +142,8 @@ namespace DotNetty.Codecs.Http2
         int lastStreamKnownByPeer();
 
         /**
-         * Gets the flow controller for this endpoint.
-         */
-        F flowController();
-
-        /**
-         * Sets the flow controller for this endpoint.
-         */
-        void flowController(F flowController);
-
-        /**
          * Gets the {@link Endpoint} opposite this one.
          */
-        Http2ConnectionEndpoint<Http2FlowController> opposite();
+        Http2ConnectionEndpoint opposite();
     }
 }
