@@ -27,17 +27,24 @@ namespace DotNetty.Codecs
             return values;
         }
 
-        public static string GetAsString<TKey, TValue>(IHeaders<TKey, TValue> headers, TKey name)
+        public static bool TryGetAsString<TKey, TValue>(IHeaders<TKey, TValue> headers, TKey name, out string value)
             where TKey : class
             where TValue : class
         {
-            TValue orig = headers.Get(name);
-            return orig?.ToString();
+            if (headers.TryGet(name, out TValue orig))
+            {
+                value = orig.ToString();
+                return true;
+            }
+            else
+            {
+                value = default(string);
+                return false;
+            }
         }
 
         public static string ToString<TKey, TValue>(IEnumerable<HeaderEntry<TKey, TValue>> headers, int size)
             where TKey : class
-            where TValue : class
         {
             string simpleName = StringUtil.SimpleClassName(headers);
             if (size == 0)

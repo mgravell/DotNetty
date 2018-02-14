@@ -82,7 +82,7 @@ namespace DotNetty.Codecs.Http.Multipart
             this.charset = charset;
 
             // Fill default values
-            this.SetMultipart(this.request.Headers.Get(HttpHeaderNames.ContentType));
+            this.SetMultipart(this.request.Headers.Get(HttpHeaderNames.ContentType, null));
             if (request is IHttpContent content)
             {
                 // Offer automatically if the given request is als type of HttpContent

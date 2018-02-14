@@ -150,17 +150,17 @@ namespace DotNetty.Codecs.Http
             return this;
         }
 
-        public override ICharSequence Get(AsciiString name) => this.headers.Get(name);
+        public override bool TryGet(AsciiString name, out ICharSequence value) => this.headers.TryGet(name, out value);
 
-        public override int? GetInt(AsciiString name) => this.headers.GetInt(name);
+        public override bool TryGetInt(AsciiString name, out int value) => this.headers.TryGetInt(name, out value);
 
         public override int GetInt(AsciiString name, int defaultValue) => this.headers.GetInt(name, defaultValue);
 
-        public override short? GetShort(AsciiString name) => this.headers.GetShort(name);
+        public override bool TryGetShort(AsciiString name, out short value) => this.headers.TryGetShort(name, out value);
 
         public override short GetShort(AsciiString name, short defaultValue) => this.headers.GetShort(name, defaultValue);
 
-        public override long? GetTimeMillis(AsciiString name) => this.headers.GetTimeMillis(name);
+        public override bool TryGetTimeMillis(AsciiString name, out long value) => this.headers.TryGetTimeMillis(name, out value);
 
         public override long GetTimeMillis(AsciiString name, long defaultValue) => this.headers.GetTimeMillis(name, defaultValue);
 
