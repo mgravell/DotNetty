@@ -24,15 +24,15 @@ namespace DotNetty.Transport.Libuv.Tests
         }
 
         [Fact]
-        public void WriteBeforeConnect()
+        public async Task WriteBeforeConnect()
         {
             Bootstrap cb = new Bootstrap()
                 .Group(this.group)
                 .Channel<TcpChannel>();
-            this.WriteBeforeConnect(cb);
+            await this.WriteBeforeConnect(cb);
         }
 
-        void WriteBeforeConnect(Bootstrap cb)
+        async Task WriteBeforeConnect(Bootstrap cb)
         {
             var h = new TestHandler();
             cb.Handler(h);
@@ -42,18 +42,15 @@ namespace DotNetty.Transport.Libuv.Tests
             this.clientChannel = task.Result;
 
             Task connectTask = this.clientChannel.ConnectAsync(LoopbackAnyPort);
-            Task writeTask = this.clientChannel.WriteAndFlushAsync(Unpooled.WrappedBuffer(new byte[] { 1 }));
-            var error = Assert.Throws<AggregateException>(() => writeTask.Wait(DefaultTimeout));
+            Exception error = await Assert.ThrowsAsync<NotYetConnectedException>(async () => await this.clientChannel.WriteAndFlushAsync(Unpooled.WrappedBuffer(new byte[] { 1 })));
+            //var error = Assert.Throws<AggregateException>(() => writeTask.Wait(DefaultTimeout));
 
-            Assert.Equal(1, error.InnerExceptions.Count);
-            Assert.IsType<NotYetConnectedException>(error.InnerException);
+            //Assert.Equal(1, error.InnerExceptions.Count);
+            //sAssert.IsType<NotYetConnectedException>(error.InnerException);
             Assert.Null(h.Error);
 
             // Connect task should fail
-            error = Assert.Throws<AggregateException>(() => connectTask.Wait(DefaultTimeout));
-            Assert.Equal(1, error.InnerExceptions.Count);
-            Assert.IsType<OperationException>(error.InnerException);
-            var exception = (OperationException)error.InnerException;
+            OperationException exception = await Assert.ThrowsAsync<OperationException>(() => connectTask);
             Assert.Equal("EADDRNOTAVAIL", exception.Name); // address not available (port : 0)
         }
 

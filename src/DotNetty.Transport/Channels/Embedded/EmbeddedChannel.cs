@@ -10,6 +10,7 @@ namespace DotNetty.Transport.Channels.Embedded
     using System.Runtime.ExceptionServices;
     using System.Threading.Tasks;
     using DotNetty.Common;
+    using DotNetty.Common.Concurrency;
     using DotNetty.Common.Internal.Logging;
     using DotNetty.Common.Utilities;
 
@@ -294,7 +295,7 @@ namespace DotNetty.Transport.Channels.Embedded
             int size = futures.Count;
             for (int i = 0; i < size; i++)
             {
-                var future = (Task)futures[i];
+                var future = (ChannelFuture)futures[i];
                 if (future.IsCompleted)
                 {
                     this.RecordException(future);
@@ -302,12 +303,14 @@ namespace DotNetty.Transport.Channels.Embedded
                 else
                 {
                     // The write may be delayed to run later by runPendingTasks()
-                    future.ContinueWith(t => this.RecordException(t));
+                    future.OnCompleted(() => this.RecordException(future));
                 }
-                if (future.Exception != null)
+                
+                
+                /*if (future.Exception != null)
                 {
                     this.RecordException(future.Exception);
-                }
+                }*/
             }
 
             this.RunPendingTasks();
@@ -315,16 +318,15 @@ namespace DotNetty.Transport.Channels.Embedded
             return IsNotEmpty(this.outboundMessages);
         }
 
-        void RecordException(Task future)
+        void RecordException(ChannelFuture future)
         {
-            switch (future.Status)
+            try
             {
-                case TaskStatus.Canceled:
-                case TaskStatus.Faulted:
-                    this.RecordException(future.Exception);
-                    break;
-                default:
-                    break;
+                future.GetResult();
+            }
+            catch (Exception ex)
+            {
+                this.RecordException(ex);
             }
         }
 

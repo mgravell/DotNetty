@@ -625,7 +625,7 @@ namespace DotNetty.Transport.Channels
         ///     This method will not request to actual flush, so be sure to call {@link #flush()}
         ///     once you want to request to flush all pending data to the actual transport.
         /// </summary>
-        Task WriteAsync(object msg);
+        ChannelFuture WriteAsync(object msg);
 
         /// <summary>
         ///     Request to flush all pending messages.
@@ -635,6 +635,6 @@ namespace DotNetty.Transport.Channels
         /// <summary>
         ///     Shortcut for call {@link #write(Object)} and {@link #flush()}.
         /// </summary>
-        Task WriteAndFlushAsync(object msg);
+        ChannelFuture WriteAndFlushAsync(object msg);
     }
 }
