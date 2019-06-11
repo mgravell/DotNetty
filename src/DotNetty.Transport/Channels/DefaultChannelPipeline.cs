@@ -965,6 +965,22 @@ namespace DotNetty.Transport.Channels
                 ReferenceCountUtil.Release(cause);
             }
         }
+        
+        /// <summary>
+        /// Called once the <see cref="IChannelHandler.ChannelActive(IChannelHandlerContext)" /> event hit
+        /// the end of <see cref="IChannelPipeline" />.
+        /// </summary>
+        protected virtual void OnUnhandledInboundChannelActive() 
+        {
+        }
+        
+        /// <summary>
+        /// Called once the <see cref="IChannelHandler.ChannelInactive(IChannelHandlerContext)" /> event hit
+        /// the end of <see cref="IChannelPipeline" />.
+        /// </summary>
+        protected virtual void OnUnhandledInboundChannelInactive() 
+        {
+        }
 
         /// <summary>
         /// Called once a message hits the end of the <see cref="IChannelPipeline" /> without being handled by the user
@@ -983,6 +999,34 @@ namespace DotNetty.Transport.Channels
             {
                 ReferenceCountUtil.Release(msg);
             }
+        }
+        
+        /// <summary>
+        /// Called once the <see cref="IChannelHandler.ChannelReadComplete(IChannelHandlerContext)" /> event hit
+        /// the end of the <see cref="IChannelPipeline" />.
+        /// </summary>
+        protected virtual void OnUnhandledInboundChannelReadComplete() 
+        {
+        }
+        
+        /// <summary>
+        /// Called once a user event hit the end of the <see cref="IChannelPipeline" />  without been handled by the user
+        /// in <see cref="IChannelHandler.UserEventTriggered(IChannelHandlerContext, object)" />. This method is responsible
+        /// to call <see cref="ReferenceCountUtil.Release(object)" /> on the given event at some point.</summary>
+        /// <param name="evt"></param>
+        protected virtual void OnUnhandledInboundUserEventTriggered(object evt) 
+        {
+            // This may not be a configuration error and so don't log anything.
+            // The event may be superfluous for the current pipeline configuration.
+            ReferenceCountUtil.Release(evt);
+        }
+
+        /// <summary>
+        /// Called once the <see cref="IChannelHandler.ChannelWritabilityChanged(IChannelHandlerContext)" /> event hit
+        /// the end of the <see cref="IChannelPipeline" />.
+        /// </summary>
+        protected virtual void OnUnhandledChannelWritabilityChanged() 
+        {
         }
 
         sealed class TailContext : AbstractChannelHandlerContext, IChannelHandler
@@ -1006,25 +1050,17 @@ namespace DotNetty.Transport.Channels
             {
             }
 
-            public void ChannelActive(IChannelHandlerContext context)
-            {
-            }
+            public void ChannelActive(IChannelHandlerContext context) => this.pipeline.OnUnhandledInboundChannelActive();
 
-            public void ChannelInactive(IChannelHandlerContext context)
-            {
-            }
+            public void ChannelInactive(IChannelHandlerContext context) => this.pipeline.OnUnhandledInboundChannelInactive();
 
             public void ExceptionCaught(IChannelHandlerContext context, Exception exception) => this.pipeline.OnUnhandledInboundException(exception);
 
             public void ChannelRead(IChannelHandlerContext context, object message) => this.pipeline.OnUnhandledInboundMessage(message);
 
-            public void ChannelReadComplete(IChannelHandlerContext context)
-            {
-            }
+            public void ChannelReadComplete(IChannelHandlerContext context) => this.pipeline.OnUnhandledInboundChannelReadComplete();
 
-            public void ChannelWritabilityChanged(IChannelHandlerContext context)
-            {
-            }
+            public void ChannelWritabilityChanged(IChannelHandlerContext context) => this.pipeline.OnUnhandledChannelWritabilityChanged();
 
             [Skip]
             public void HandlerAdded(IChannelHandlerContext context)
@@ -1048,7 +1084,7 @@ namespace DotNetty.Transport.Channels
             [Skip]
             public void Read(IChannelHandlerContext context) => context.Read();
 
-            public void UserEventTriggered(IChannelHandlerContext context, object evt) => ReferenceCountUtil.Release(evt);
+            public void UserEventTriggered(IChannelHandlerContext context, object evt) => this.pipeline.OnUnhandledInboundUserEventTriggered(evt);
 
             [Skip]
             public ValueTask WriteAsync(IChannelHandlerContext ctx, object message) => ctx.WriteAsync(message);
