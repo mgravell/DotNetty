@@ -102,9 +102,15 @@ namespace DotNetty.Transport.Channels.Sockets
 
         void ClearReadPending0() => this.ReadPending = false;
 
-        protected bool InputShutdown => this.inputShutdown;
+        public bool InputShutdown => this.inputShutdown;
 
         protected void ShutdownInput() => this.inputShutdown = true;
+
+        public Task ShutdownInputAsync()
+        {
+            this.ShutdownInput();
+            return TaskEx.Completed;
+        }
 
         protected void SetState(StateFlags stateToSet) => this.state |= stateToSet;
 

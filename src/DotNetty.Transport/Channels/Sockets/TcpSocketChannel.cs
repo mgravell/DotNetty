@@ -67,7 +67,7 @@ namespace DotNetty.Transport.Channels.Sockets
 
         protected override EndPoint RemoteAddressInternal => this.Socket.RemoteEndPoint;
 
-        public bool IsOutputShutdown
+        public bool OutputShutdown
         {
             get { throw new NotImplementedException(); } // todo: impl with stateflags
         }
