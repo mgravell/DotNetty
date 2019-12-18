@@ -19,6 +19,8 @@ namespace DotNetty.Codecs.Base64
 
         public static IByteBuffer Encode(IByteBuffer src, Base64Dialect dialect) => Encode(src, src.ReaderIndex, src.ReadableBytes, dialect.breakLinesByDefault, dialect);
 
+        public static IByteBuffer Encode(IByteBuffer src, bool breakLines) => Encode(src, breakLines, Base64Dialect.STANDARD);
+
         public static IByteBuffer Encode(IByteBuffer src, bool breakLines, Base64Dialect dialect) => Encode(src, src.ReaderIndex, src.ReadableBytes, breakLines, dialect);
 
         public static IByteBuffer Encode(IByteBuffer src, int offset, int length, bool breakLines, Base64Dialect dialect) => Encode(src, offset, length, breakLines, dialect, src.Allocator);

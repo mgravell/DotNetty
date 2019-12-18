@@ -107,6 +107,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WebSockets.Server", "exampl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebSockets.Client", "examples\WebSockets.Client\WebSockets.Client.csproj", "{3326DB6E-023E-483F-9A1C-5905D3091B57}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetty.Handlers.Proxy", "src\DotNetty.Handlers.Proxy\DotNetty.Handlers.Proxy.csproj", "{22C4F0A1-B04B-4402-856D-BA481D00511B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -285,6 +287,10 @@ Global
 		{3326DB6E-023E-483F-9A1C-5905D3091B57}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3326DB6E-023E-483F-9A1C-5905D3091B57}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3326DB6E-023E-483F-9A1C-5905D3091B57}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22C4F0A1-B04B-4402-856D-BA481D00511B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22C4F0A1-B04B-4402-856D-BA481D00511B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22C4F0A1-B04B-4402-856D-BA481D00511B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22C4F0A1-B04B-4402-856D-BA481D00511B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -333,6 +339,7 @@ Global
 		{16C89E7C-1575-4685-8DFA-8E7E2C6101BF} = {541093F6-616E-43D9-B671-FCD1F9C0A181}
 		{EA387B4B-DAD0-4E34-B8A3-79EA4616726A} = {F716F1EF-81EF-4020-914A-5422A13A9E13}
 		{3326DB6E-023E-483F-9A1C-5905D3091B57} = {F716F1EF-81EF-4020-914A-5422A13A9E13}
+		{22C4F0A1-B04B-4402-856D-BA481D00511B} = {126EA539-4B28-4B07-8B5D-D1D7F794D189}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		{9FE6A783-C20D-4097-9988-4178E2C4CE75} = {126EA539-4B28-4B07-8B5D-D1D7F794D189}
