@@ -1067,24 +1067,16 @@ namespace DotNetty.Transport.Channels
                 {
                     this.TrySetException(ex);
                 }
-                finally
-                {
-                    // Set to null so the GC can collect them directly
-                    this.ctx = null;
-                    this.msg = null;
-                    
-                    //this.Recycle();
-                    //this.handle.Release(this);
-                }
             }
 
             protected abstract ValueTask WriteAsync(AbstractChannelHandlerContext ctx, object msg);
 
-            /*public override void Recycle()
+            protected override void Recycle()
             {
+                this.ctx = null;
+                this.msg = null;
                 base.Recycle();
-                this.handle.Release(this);
-            }*/
+            }
         }
         
         
